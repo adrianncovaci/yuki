@@ -1,0 +1,2 @@
+timeout_secs = 60
+url = "https://api.mainnet.solana.com"
