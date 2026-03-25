@@ -1,2 +1,34 @@
+[rpc]
 timeout_secs = 60
 url = "https://api.mainnet.solana.com"
+
+[wallet]
+keypair_path = "dca-wallet.json"
+reserve_sol = 0.5
+
+[swap]
+slippage_bps = 100
+
+[[targets]]
+symbol = "BP"
+mint_address = "BPxxfRCXkUVhig4HS1Lh7kZqV6SPJhzfEk4x6fVBjPCy"
+weight = 25
+pool = "..."  # Raydium pool address for SOL/BP
+
+[[targets]]
+symbol = "JUP"
+mint_address = "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
+weight = 25
+pool = "..."  # Raydium pool address for SOL/JUP
+
+[[targets]]
+symbol = "RAY"
+mint_address = "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"
+weight = 25
+pool = "..."  # Raydium pool address for SOL/RAY
+
+[[targets]]
+symbol = "JTO"
+mint_address = "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL"
+weight = 25
+pool = "..."  # Raydium pool address for SOL/JTO

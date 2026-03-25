@@ -1,16 +1,14 @@
-use serde::Deserialize;
+pub mod config;
+
+use solana_sdk::{signature::read_keypair_file, signer::Signer};
 use std::time::Duration;
-use tokio::{fs::File, io::AsyncReadExt};
+use tokio::fs::read_to_string;
 
 use anyhow::Context;
 
 use solana_rpc_client::{api::config::CommitmentConfig, nonblocking::rpc_client::RpcClient};
 
-#[derive(Debug, Deserialize)]
-struct Config {
-    timeout_secs: u64,
-    url: String,
-}
+use crate::config::Config;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -18,27 +16,26 @@ async fn main() -> anyhow::Result<()> {
         .with_max_level(tracing::Level::TRACE)
         .init();
 
-    let mut config_file = File::open("config.toml")
-        .await
-        .context("Failed to open config file")?;
-
-    let mut file_str = String::new();
-
-    config_file
-        .read_to_string(&mut file_str)
+    let config_str = read_to_string("config.toml")
         .await
         .context("Failed to read config file")?;
 
-    let config = toml::from_str::<Config>(file_str.as_str())?;
+    let config = toml::from_str::<Config>(config_str.as_str())?;
 
     let commitment_config = CommitmentConfig::processed();
+
     let client = RpcClient::new_with_timeout_and_commitment(
-        config.url,
-        Duration::from_secs(config.timeout_secs),
+        config.rpc.url,
+        Duration::from_secs(config.rpc.timeout_secs),
         commitment_config,
     );
 
-    tracing::info!("{:?}", client.get_slot().await);
+    let dca_wallet = read_keypair_file(&config.wallet.keypair_path)
+        .map_err(|e| anyhow::anyhow!("Failed to read keypair: {e}"))?;
+
+    let balance = client.get_balance(&dca_wallet.pubkey()).await;
+
+    tracing::info!("balance = {balance:?}, pubkey = {:?}", dca_wallet.pubkey());
 
     Ok(())
 }
