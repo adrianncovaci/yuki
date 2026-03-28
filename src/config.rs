@@ -36,6 +36,9 @@ pub struct Target {
     #[serde(deserialize_with = "deserialize_pubkey")]
     pub mint_address: Pubkey,
     pub weight: u32,
+    #[serde(deserialize_with = "deserialize_pubkey")]
+    pub orca_pool: Pubkey,
+    pub decimals: u32,
 }
 
 fn deserialize_pubkey<'de, D>(de: D) -> Result<Pubkey, D::Error>

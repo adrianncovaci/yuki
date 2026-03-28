@@ -9,26 +9,34 @@ reserve_sol = 0.5
 [swap]
 slippage_bps = 100
 
-[[targets]]
-symbol = "BP"
-mint_address = "BPxxfRCXkUVhig4HS1Lh7kZqV6SPJhzfEk4x6fVBjPCy"
-weight = 25
-pool = "..."  # Raydium pool address for SOL/BP
+# [[targets]]
+# symbol = "BP"
+# mint_address = "BPxxfRCXkUVhig4HS1Lh7kZqV6SPJhzfEk4x6fVBjPCy"
+# weight = 25
+# orca_pool = ""  # Orca pool address for SOL/BP
+ 
+# [[targets]]
+# symbol = "JUP"
+# mint_address = "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
+# weight = 25
+# orca_pool = ""  # Orca pool address for SOL/JUP
 
-[[targets]]
-symbol = "JUP"
-mint_address = "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
-weight = 25
-pool = "..."  # Raydium pool address for SOL/JUP
-
-[[targets]]
-symbol = "RAY"
-mint_address = "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"
-weight = 25
-pool = "..."  # Raydium pool address for SOL/RAY
+# [[targets]]
+# symbol = "RAY"
+# mint_address = "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"
+# weight = 25
+# orca_pool = ""  # Orca pool address for SOL/RAY
 
 [[targets]]
 symbol = "JTO"
 mint_address = "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL"
 weight = 25
-pool = "..."  # Raydium pool address for SOL/JTO
+orca_pool = "Hp53XEtt4S8SvPCXarsLSdGfZBuUr5mMmZmX2DRNXQKp"  # Orca pool address for SOL/JTO
+decimals = 9
+
+[[targets]]
+symbol = "USDC"
+mint_address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+weight = 25
+orca_pool = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE"  # Orca pool address for SOL/USDC
+decimals = 6
