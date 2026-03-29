@@ -1,18 +1,20 @@
 pub mod config;
 pub mod orca_amm;
+pub mod pool;
+pub mod swap;
 
-use solana_sdk::{signature::read_keypair_file, signer::Signer};
+use solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::read_keypair_file, signer::Signer};
 use std::time::Duration;
 use tokio::fs::read_to_string;
 
 use anyhow::Context;
 
-use solana_rpc_client::{api::config::CommitmentConfig, nonblocking::rpc_client::RpcClient};
-
-use crate::{
-    config::Config,
-    orca_amm::{fetch_human_readable_price, fetch_pool_bytes},
+use solana_rpc_client::{
+    api::{config::CommitmentConfig, response::transaction::Transaction},
+    nonblocking::rpc_client::RpcClient,
 };
+
+use crate::{config::Config, orca_amm::fetch_human_readable_price, pool::fetch_pool_bytes};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -63,8 +65,35 @@ async fn main() -> anyhow::Result<()> {
 
     let usdc_price =
         fetch_human_readable_price(usdc_whirlpool.sqrt_price, usdc_orca_pool.decimals, 9);
-
     tracing::info!("usdc price = {usdc_price:#?}");
+
+    let usdc_whirlpool_config = usdc_whirlpool.whirlpools_config;
+
+    let ix = swap::swap(
+        usdc_whirlpool,
+        LAMPORTS_PER_SOL / 10,
+        100,
+        usdc_orca_pool.decimals,
+        usdc_price,
+        dca_wallet.pubkey(),
+        usdc_whirlpool_config,
+    );
+
+    let recent_blockhash = client
+        .get_latest_blockhash()
+        .await
+        .context("Failed to get latest blockhash")?;
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&dca_wallet.pubkey()),
+        &[&dca_wallet],
+        recent_blockhash,
+    );
+
+    let signature = client.send_and_confirm_transaction(&tx).await?;
+
+    tracing::info!("{signature:#?}");
 
     Ok(())
 }
