@@ -1,7 +1,7 @@
 use orca_whirlpools_client::{SwapV2Builder, Whirlpool};
 use solana_sdk::{message::Instruction, pubkey::Pubkey};
 
-#[warn(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 pub fn swap(
     whirlpool: Whirlpool,
     amount: u64,
@@ -10,8 +10,6 @@ pub fn swap(
     b_token_price: f64,
     authority: Pubkey,
     whirlpool_pool: Pubkey,
-    a_mint: Pubkey,
-    b_mint: Pubkey,
     a_token_vault: Pubkey,
     b_token_vault: Pubkey,
     tick_array0: Pubkey,
@@ -33,8 +31,6 @@ pub fn swap(
         .other_amount_threshold(other_amount_threshold)
         .token_authority(authority)
         .whirlpool(whirlpool_pool)
-        .token_mint_a(a_mint)
-        .token_mint_b(b_mint)
         .token_owner_account_a(authority)
         .token_owner_account_b(authority)
         .token_vault_a(a_token_vault)

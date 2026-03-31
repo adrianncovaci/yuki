@@ -4759,6 +4759,7 @@ dependencies = [
  "serde",
  "solana-rpc-client",
  "solana-sdk",
+ "solana-system-interface 3.1.0",
  "spl-associated-token-account-interface",
  "spl-token",
  "tokio",

@@ -4,7 +4,12 @@ pub mod pool;
 pub mod swap;
 
 use orca_whirlpools_client::get_tick_array_address;
-use solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::read_keypair_file, signer::Signer};
+use solana_sdk::{
+    native_token::LAMPORTS_PER_SOL,
+    signature::{Keypair, read_keypair_file},
+    signer::Signer,
+};
+use solana_system_interface::instruction::create_account;
 use spl_associated_token_account_interface::instruction::create_associated_token_account_idempotent;
 use std::time::Duration;
 use tokio::fs::read_to_string;
@@ -78,9 +83,6 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("Failed to get latest blockhash")?;
 
-    let a_mint = usdc_whirlpool.token_mint_a;
-    let b_mint = usdc_whirlpool.token_mint_b;
-
     let a_vault = usdc_whirlpool.token_vault_a;
     let b_vault = usdc_whirlpool.token_vault_b;
 
@@ -102,16 +104,37 @@ async fn main() -> anyhow::Result<()> {
     let tick_arr2 = get_tick_array_address(&usdc_orca_pool.orca_pool, tick_arr2_idx)
         .context("Failed to get tick array address")?;
 
-    let ix = swap::swap(
+    let wsol_keypair = Keypair::new();
+    let amount = LAMPORTS_PER_SOL / 100;
+
+    let create_wsol_ix = create_account(
+        &dca_wallet.pubkey(),
+        &wsol_keypair.pubkey(),
+        amount,
+        165,
+        &dca_wallet.pubkey(),
+    );
+
+    let initialize_wsol_acc_ix = spl_token::instruction::initialize_account(
+        &spl_token::id(),
+        &wsol_keypair.pubkey(),
+        &spl_token::native_mint::id(),
+        &dca_wallet.pubkey(),
+    )
+    .context("Failed to initialize wsol ix")?;
+
+    let sync_native_ix =
+        spl_token::instruction::sync_native(&spl_token::id(), &wsol_keypair.pubkey())
+            .context("Failed to sync wsol ix")?;
+
+    let swap_ix = swap::swap(
         usdc_whirlpool,
-        LAMPORTS_PER_SOL / 100,
+        amount,
         100,
         usdc_orca_pool.decimals,
         usdc_price,
         dca_wallet.pubkey(),
         usdc_orca_pool.orca_pool,
-        a_mint,
-        b_mint,
         a_vault,
         b_vault,
         tick_arr0.0,
@@ -119,15 +142,28 @@ async fn main() -> anyhow::Result<()> {
         tick_arr2.0,
     );
 
+    let close_wsol_ix = spl_token::instruction::close_account(
+        &spl_token::id(),
+        &wsol_keypair.pubkey(),
+        &dca_wallet.pubkey(),
+        &dca_wallet.pubkey(),
+        &[],
+    )
+    .context("Failed to close wsol ix")?;
+
     let tx = Transaction::new_signed_with_payer(
         &[
+            create_wsol_ix,
+            initialize_wsol_acc_ix,
+            sync_native_ix,
             create_associated_token_account_idempotent(
                 &dca_wallet.pubkey(),
                 &dca_wallet.pubkey(),
                 &usdc_orca_pool.mint_address,
                 &spl_token::id(),
             ),
-            ix,
+            swap_ix,
+            close_wsol_ix,
         ],
         Some(&dca_wallet.pubkey()),
         &[&dca_wallet],
