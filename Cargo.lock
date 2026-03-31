@@ -4756,6 +4756,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "orca_whirlpools_client",
+ "orca_whirlpools_core",
  "serde",
  "solana-rpc-client",
  "solana-sdk",

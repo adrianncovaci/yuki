@@ -3,14 +3,15 @@ pub mod orca_amm;
 pub mod pool;
 pub mod swap;
 
-use orca_whirlpools_client::get_tick_array_address;
+use orca_whirlpools_client::{get_oracle_address, get_tick_array_address};
 use solana_sdk::{
     native_token::LAMPORTS_PER_SOL,
     signature::{Keypair, read_keypair_file},
     signer::Signer,
 };
-use solana_system_interface::instruction::create_account;
-use spl_associated_token_account_interface::instruction::create_associated_token_account_idempotent;
+use spl_associated_token_account_interface::{
+    address::get_associated_token_address, instruction::create_associated_token_account_idempotent,
+};
 use std::time::Duration;
 use tokio::fs::read_to_string;
 
@@ -74,6 +75,8 @@ async fn main() -> anyhow::Result<()> {
 
     let usdc_whirlpool = fetch_pool_bytes(&client, usdc_orca_pool.orca_pool).await?;
 
+    let (oracle, _) = get_oracle_address(&usdc_orca_pool.orca_pool)?;
+
     let usdc_price =
         fetch_human_readable_price(usdc_whirlpool.sqrt_price, usdc_orca_pool.decimals, 9);
     tracing::info!("usdc price = {usdc_price:#?}");
@@ -107,12 +110,16 @@ async fn main() -> anyhow::Result<()> {
     let wsol_keypair = Keypair::new();
     let amount = LAMPORTS_PER_SOL / 100;
 
-    let create_wsol_ix = create_account(
+    let create_wsol_ix = solana_system_interface::instruction::create_account(
         &dca_wallet.pubkey(),
         &wsol_keypair.pubkey(),
-        amount,
+        amount
+            + client
+                .get_minimum_balance_for_rent_exemption(165)
+                .await
+                .context("Failed to fetch minimum balance for rent exemption")?,
         165,
-        &dca_wallet.pubkey(),
+        &spl_token::id(),
     );
 
     let initialize_wsol_acc_ix = spl_token::instruction::initialize_account(
@@ -127,6 +134,8 @@ async fn main() -> anyhow::Result<()> {
         spl_token::instruction::sync_native(&spl_token::id(), &wsol_keypair.pubkey())
             .context("Failed to sync wsol ix")?;
 
+    let usdc_ata = get_associated_token_address(&dca_wallet.pubkey(), &usdc_orca_pool.mint_address);
+
     let swap_ix = swap::swap(
         usdc_whirlpool,
         amount,
@@ -140,6 +149,11 @@ async fn main() -> anyhow::Result<()> {
         tick_arr0.0,
         tick_arr1.0,
         tick_arr2.0,
+        wsol_keypair.pubkey(),
+        usdc_ata,
+        oracle,
+        true,
+        true,
     );
 
     let close_wsol_ix = spl_token::instruction::close_account(
@@ -166,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
             close_wsol_ix,
         ],
         Some(&dca_wallet.pubkey()),
-        &[&dca_wallet],
+        &[&dca_wallet, &wsol_keypair],
         recent_blockhash,
     );
 
