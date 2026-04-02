@@ -6,7 +6,7 @@ use solana_system_interface::instruction::create_account;
 use spl_token::instruction::initialize_account;
 
 pub struct WsolSwap {
-    pub wsol_keypair: Keypair,
+    pub keypair: Keypair,
     pub create_ix: Instruction,
     pub init_ix: Instruction,
     pub sync_ix: Instruction,
@@ -19,11 +19,11 @@ impl WsolSwap {
         amount_lamports: u64,
         rent_exempt: u64,
     ) -> anyhow::Result<Self> {
-        let wsol_keypair = Keypair::new();
+        let keypair = Keypair::new();
 
         let create_ix = create_account(
             from_address,
-            &wsol_keypair.pubkey(),
+            &keypair.pubkey(),
             amount_lamports + rent_exempt,
             spl_token::state::Account::LEN as u64,
             &spl_token::id(),
@@ -31,18 +31,18 @@ impl WsolSwap {
 
         let init_ix = initialize_account(
             &spl_token::id(),
-            &wsol_keypair.pubkey(),
+            &keypair.pubkey(),
             &spl_token::native_mint::id(),
             from_address,
         )
         .context("Failed to initialize wsol ix")?;
 
-        let sync_ix = spl_token::instruction::sync_native(&spl_token::id(), &wsol_keypair.pubkey())
+        let sync_ix = spl_token::instruction::sync_native(&spl_token::id(), &keypair.pubkey())
             .context("Failed to sync wsol ix")?;
 
         let close_ix = spl_token::instruction::close_account(
             &spl_token::id(),
-            &wsol_keypair.pubkey(),
+            &keypair.pubkey(),
             from_address,
             from_address,
             &[],
@@ -50,7 +50,7 @@ impl WsolSwap {
         .context("Failed to close wsol ix")?;
 
         Ok(Self {
-            wsol_keypair,
+            keypair,
             create_ix,
             init_ix,
             sync_ix,

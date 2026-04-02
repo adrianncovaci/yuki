@@ -1,15 +1,10 @@
 pub mod config;
-pub mod pool;
-pub mod swap;
+pub mod orca;
 pub mod wsol;
 
-use orca_whirlpools_client::{get_oracle_address, get_tick_array_address};
-use orca_whirlpools_core::{TICK_ARRAY_SIZE, get_tick_array_start_tick_index, sqrt_price_to_price};
-use solana_sdk::{
-    native_token::LAMPORTS_PER_SOL,
-    signature::{Keypair, read_keypair_file},
-    signer::Signer,
-};
+use orca_whirlpools_client::get_oracle_address;
+use orca_whirlpools_core::sqrt_price_to_price;
+use solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::read_keypair_file, signer::Signer};
 use spl_associated_token_account_interface::{
     address::get_associated_token_address, instruction::create_associated_token_account_idempotent,
 };
@@ -23,7 +18,15 @@ use solana_rpc_client::{
     nonblocking::rpc_client::RpcClient,
 };
 
-use crate::{config::Config, pool::fetch_pool_bytes};
+use crate::{
+    config::Config,
+    orca::{
+        pool::fetch_pool_bytes,
+        swap::{SwapParams, swap},
+        tick::TickArray,
+    },
+    wsol::WsolSwap,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -48,22 +51,6 @@ async fn main() -> anyhow::Result<()> {
     let dca_wallet = read_keypair_file(&config.wallet.keypair_path)
         .map_err(|e| anyhow::anyhow!("Failed to read keypair: {e}"))?;
 
-    let balance = client.get_balance(&dca_wallet.pubkey()).await;
-
-    tracing::info!("balance = {balance:?}, pubkey = {:?}", dca_wallet.pubkey());
-
-    let jto_orca_pool = config
-        .targets
-        .iter()
-        .find(|x| x.symbol.as_str() == "JTO")
-        .context("Failed to find jto target")?;
-
-    let jto_whirlpool = fetch_pool_bytes(&client, jto_orca_pool.orca_pool).await?;
-
-    let jto_price = sqrt_price_to_price(jto_whirlpool.sqrt_price, jto_orca_pool.decimals as u8, 9);
-
-    tracing::info!("jito price = {jto_price:#?}");
-
     let usdc_orca_pool = config
         .targets
         .iter()
@@ -84,90 +71,45 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("Failed to get latest blockhash")?;
 
-    let a_vault = usdc_whirlpool.token_vault_a;
-    let b_vault = usdc_whirlpool.token_vault_b;
+    let rent_exempt = client
+        .get_minimum_balance_for_rent_exemption(165)
+        .await
+        .context("Failed to fetch minimum balance for rent exemption")?;
 
-    let ticks_in_array = usdc_whirlpool.tick_spacing as i32 * TICK_ARRAY_SIZE as i32;
-
-    let tick_arr0_idx = get_tick_array_start_tick_index(
-        usdc_whirlpool.tick_current_index,
-        usdc_whirlpool.tick_spacing,
-    );
-
-    let tick_arr1_idx = tick_arr0_idx - ticks_in_array;
-
-    let tick_arr2_idx = tick_arr1_idx - ticks_in_array;
-
-    let tick_arr0 = get_tick_array_address(&usdc_orca_pool.orca_pool, tick_arr0_idx)
-        .context("Failed to get tick array address")?;
-    let tick_arr1 = get_tick_array_address(&usdc_orca_pool.orca_pool, tick_arr1_idx)
-        .context("Failed to get tick array address")?;
-    let tick_arr2 = get_tick_array_address(&usdc_orca_pool.orca_pool, tick_arr2_idx)
-        .context("Failed to get tick array address")?;
-
-    let wsol_keypair = Keypair::new();
     let amount = LAMPORTS_PER_SOL / 100;
 
-    let create_wsol_ix = solana_system_interface::instruction::create_account(
-        &dca_wallet.pubkey(),
-        &wsol_keypair.pubkey(),
-        amount
-            + client
-                .get_minimum_balance_for_rent_exemption(165)
-                .await
-                .context("Failed to fetch minimum balance for rent exemption")?,
-        165,
-        &spl_token::id(),
-    );
-
-    let initialize_wsol_acc_ix = spl_token::instruction::initialize_account(
-        &spl_token::id(),
-        &wsol_keypair.pubkey(),
-        &spl_token::native_mint::id(),
-        &dca_wallet.pubkey(),
-    )
-    .context("Failed to initialize wsol ix")?;
-
-    let sync_native_ix =
-        spl_token::instruction::sync_native(&spl_token::id(), &wsol_keypair.pubkey())
-            .context("Failed to sync wsol ix")?;
-
     let usdc_ata = get_associated_token_address(&dca_wallet.pubkey(), &usdc_orca_pool.mint_address);
+    let wsol_swap = WsolSwap::new(&dca_wallet.pubkey(), amount, rent_exempt)?;
 
-    let swap_ix = swap::swap(
-        usdc_whirlpool,
-        amount,
-        100,
-        usdc_orca_pool.decimals,
-        usdc_price,
-        dca_wallet.pubkey(),
+    let tick_array = TickArray::new(
         usdc_orca_pool.orca_pool,
-        a_vault,
-        b_vault,
-        tick_arr0.0,
-        tick_arr1.0,
-        tick_arr2.0,
-        wsol_keypair.pubkey(),
-        usdc_ata,
-        oracle,
-        true,
-        true,
-    );
+        usdc_whirlpool.tick_current_index,
+        usdc_whirlpool.tick_spacing,
+    )?;
 
-    let close_wsol_ix = spl_token::instruction::close_account(
-        &spl_token::id(),
-        &wsol_keypair.pubkey(),
-        &dca_wallet.pubkey(),
-        &dca_wallet.pubkey(),
-        &[],
-    )
-    .context("Failed to close wsol ix")?;
+    let swap_params = SwapParams {
+        whirlpool: usdc_whirlpool,
+        pool_address: usdc_orca_pool.orca_pool,
+        amount,
+        slippage_bps: 100,
+        b_token_decimals: usdc_orca_pool.decimals,
+        b_token_price: usdc_price,
+        authority: dca_wallet.pubkey(),
+        a_token_ata: wsol_swap.keypair.pubkey(),
+        b_token_ata: usdc_ata,
+        tick_arrays: tick_array.inner,
+        oracle,
+        a_to_b: true,
+        amount_specified_is_input: true,
+    };
+
+    let swap_ix = swap(swap_params);
 
     let tx = Transaction::new_signed_with_payer(
         &[
-            create_wsol_ix,
-            initialize_wsol_acc_ix,
-            sync_native_ix,
+            wsol_swap.create_ix,
+            wsol_swap.init_ix,
+            wsol_swap.sync_ix,
             create_associated_token_account_idempotent(
                 &dca_wallet.pubkey(),
                 &dca_wallet.pubkey(),
@@ -175,10 +117,10 @@ async fn main() -> anyhow::Result<()> {
                 &spl_token::id(),
             ),
             swap_ix,
-            close_wsol_ix,
+            wsol_swap.close_ix,
         ],
         Some(&dca_wallet.pubkey()),
-        &[&dca_wallet, &wsol_keypair],
+        &[&dca_wallet, &wsol_swap.keypair],
         recent_blockhash,
     );
 
