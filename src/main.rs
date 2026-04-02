@@ -1,9 +1,10 @@
 pub mod config;
-pub mod orca_amm;
 pub mod pool;
 pub mod swap;
+pub mod wsol;
 
 use orca_whirlpools_client::{get_oracle_address, get_tick_array_address};
+use orca_whirlpools_core::{TICK_ARRAY_SIZE, get_tick_array_start_tick_index, sqrt_price_to_price};
 use solana_sdk::{
     native_token::LAMPORTS_PER_SOL,
     signature::{Keypair, read_keypair_file},
@@ -22,11 +23,7 @@ use solana_rpc_client::{
     nonblocking::rpc_client::RpcClient,
 };
 
-use crate::{
-    config::Config,
-    orca_amm::{TICK_ARRAY_SIZE, fetch_human_readable_price, get_tick_array_start_tick_index},
-    pool::fetch_pool_bytes,
-};
+use crate::{config::Config, pool::fetch_pool_bytes};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -63,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
 
     let jto_whirlpool = fetch_pool_bytes(&client, jto_orca_pool.orca_pool).await?;
 
-    let jto_price = fetch_human_readable_price(jto_whirlpool.sqrt_price, jto_orca_pool.decimals, 9);
+    let jto_price = sqrt_price_to_price(jto_whirlpool.sqrt_price, jto_orca_pool.decimals as u8, 9);
 
     tracing::info!("jito price = {jto_price:#?}");
 
@@ -78,7 +75,8 @@ async fn main() -> anyhow::Result<()> {
     let (oracle, _) = get_oracle_address(&usdc_orca_pool.orca_pool)?;
 
     let usdc_price =
-        fetch_human_readable_price(usdc_whirlpool.sqrt_price, usdc_orca_pool.decimals, 9);
+        sqrt_price_to_price(usdc_whirlpool.sqrt_price, usdc_orca_pool.decimals as u8, 9);
+
     tracing::info!("usdc price = {usdc_price:#?}");
 
     let recent_blockhash = client
