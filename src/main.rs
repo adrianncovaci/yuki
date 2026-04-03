@@ -23,7 +23,7 @@ use solana_rpc_client::{
 };
 
 use crate::{
-    config::Config,
+    config::{Config, Target},
     orca::{
         pool::fetch_pool_bytes,
         swap::{SwapParams, swap},
@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
     let commitment_config = CommitmentConfig::processed();
 
     let client = RpcClient::new_with_timeout_and_commitment(
-        config.rpc.url,
+        config.rpc.url.clone(),
         Duration::from_secs(config.rpc.timeout_secs),
         commitment_config,
     );
@@ -55,52 +55,80 @@ async fn main() -> anyhow::Result<()> {
     let dca_wallet = read_keypair_file(&config.wallet.keypair_path)
         .map_err(|e| anyhow::anyhow!("Failed to read keypair: {e}"))?;
 
-    let usdc_orca_pool = config
-        .targets
-        .iter()
-        .find(|x| x.symbol.as_str() == "USDC")
-        .context("Failed to find usdc target")?;
+    let total_weight: u32 = config.targets.iter().map(|x| x.weight).sum();
 
-    let usdc_whirlpool = fetch_pool_bytes(&client, usdc_orca_pool.orca_pool).await?;
+    let balance = client.get_balance(&dca_wallet.pubkey()).await?;
+    let needed = (config.swap.amount_sol + config.wallet.reserve_sol) * 1e9;
 
-    let (oracle, _) = get_oracle_address(&usdc_orca_pool.orca_pool)?;
-
-    let usdc_price =
-        sqrt_price_to_price(usdc_whirlpool.sqrt_price, usdc_orca_pool.decimals as u8, 9);
-
-    tracing::info!("usdc price = {usdc_price:#?}");
-
-    let recent_blockhash = client
-        .get_latest_blockhash()
-        .await
-        .context("Failed to get latest blockhash")?;
+    if (balance as f64) < needed {
+        anyhow::bail!("Insufficient balance");
+    }
 
     let rent_exempt = client
         .get_minimum_balance_for_rent_exemption(165)
         .await
         .context("Failed to fetch minimum balance for rent exemption")?;
 
-    let amount = (config.swap.amount_sol * LAMPORTS_PER_SOL as f64) as u64;
+    for target in &config.targets {
+        if let Err(err) = dca_target(
+            &config,
+            &client,
+            &dca_wallet,
+            target,
+            total_weight,
+            rent_exempt,
+        )
+        .await
+        {
+            tracing::error!("Failed to dca {target:?}: {err:?}");
+        }
+    }
 
-    let usdc_ata = get_associated_token_address(&dca_wallet.pubkey(), &usdc_orca_pool.mint_address);
-    let wsol_swap = WsolSwap::new(&dca_wallet.pubkey(), amount, rent_exempt)?;
+    Ok(())
+}
+
+pub async fn dca_target(
+    config: &Config,
+    client: &RpcClient,
+    wallet: &Keypair,
+    target: &Target,
+    total_weight: u32,
+    rent_exempt: u64,
+) -> anyhow::Result<()> {
+    let whirlpool = fetch_pool_bytes(client, target.orca_pool).await?;
+
+    let (oracle, _) = get_oracle_address(&target.orca_pool)?;
+
+    let price = sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
+
+    let recent_blockhash = client
+        .get_latest_blockhash()
+        .await
+        .context("Failed to get latest blockhash")?;
+
+    let amount = (config.swap.amount_sol
+        * LAMPORTS_PER_SOL as f64
+        * (target.weight as f64 / total_weight as f64)) as u64;
+
+    let ata = get_associated_token_address(&wallet.pubkey(), &target.mint_address);
+    let wsol_swap = WsolSwap::new(&wallet.pubkey(), amount, rent_exempt)?;
 
     let tick_array = TickArray::new(
-        usdc_orca_pool.orca_pool,
-        usdc_whirlpool.tick_current_index,
-        usdc_whirlpool.tick_spacing,
+        target.orca_pool,
+        whirlpool.tick_current_index,
+        whirlpool.tick_spacing,
     )?;
 
     let swap_params = SwapParams {
-        whirlpool: usdc_whirlpool,
-        pool_address: usdc_orca_pool.orca_pool,
+        whirlpool,
+        pool_address: target.orca_pool,
         amount,
-        slippage_bps: 100,
-        b_token_decimals: usdc_orca_pool.decimals,
-        b_token_price: usdc_price,
-        authority: dca_wallet.pubkey(),
+        slippage_bps: config.swap.slippage_bps,
+        b_token_decimals: target.decimals,
+        b_token_price: price,
+        authority: wallet.pubkey(),
         a_token_ata: wsol_swap.keypair.pubkey(),
-        b_token_ata: usdc_ata,
+        b_token_ata: ata,
         tick_arrays: tick_array.inner,
         oracle,
         a_to_b: true,
@@ -115,16 +143,16 @@ async fn main() -> anyhow::Result<()> {
             wsol_swap.init_ix,
             wsol_swap.sync_ix,
             create_associated_token_account_idempotent(
-                &dca_wallet.pubkey(),
-                &dca_wallet.pubkey(),
-                &usdc_orca_pool.mint_address,
+                &wallet.pubkey(),
+                &wallet.pubkey(),
+                &target.mint_address,
                 &spl_token::id(),
             ),
             swap_ix,
             wsol_swap.close_ix,
         ],
-        Some(&dca_wallet.pubkey()),
-        &[&dca_wallet, &wsol_swap.keypair],
+        Some(&wallet.pubkey()),
+        &[wallet, &wsol_swap.keypair],
         recent_blockhash,
     );
 
