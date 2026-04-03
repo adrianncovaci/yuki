@@ -4,7 +4,11 @@ pub mod wsol;
 
 use orca_whirlpools_client::get_oracle_address;
 use orca_whirlpools_core::sqrt_price_to_price;
-use solana_sdk::{native_token::LAMPORTS_PER_SOL, signature::read_keypair_file, signer::Signer};
+use solana_sdk::{
+    native_token::LAMPORTS_PER_SOL,
+    signature::{Keypair, read_keypair_file},
+    signer::Signer,
+};
 use spl_associated_token_account_interface::{
     address::get_associated_token_address, instruction::create_associated_token_account_idempotent,
 };
@@ -76,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("Failed to fetch minimum balance for rent exemption")?;
 
-    let amount = LAMPORTS_PER_SOL / 100;
+    let amount = (config.swap.amount_sol * LAMPORTS_PER_SOL as f64) as u64;
 
     let usdc_ata = get_associated_token_address(&dca_wallet.pubkey(), &usdc_orca_pool.mint_address);
     let wsol_swap = WsolSwap::new(&dca_wallet.pubkey(), amount, rent_exempt)?;

@@ -7,6 +7,7 @@ keypair_path = "dca-wallet.json"
 reserve_sol = 0.5
 
 [swap]
+amount_sol = 0.1
 slippage_bps = 100
 
 # [[targets]]

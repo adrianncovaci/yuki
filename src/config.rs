@@ -22,6 +22,7 @@ pub struct Rpc {
 #[derive(Debug, Deserialize)]
 pub struct Swap {
     pub slippage_bps: u32,
+    pub amount_sol: f64,
 }
 
 #[derive(Debug, Deserialize)]
