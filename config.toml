@@ -9,6 +9,7 @@ reserve_sol = 0.5
 [swap]
 amount_sol = 0.1
 slippage_bps = 100
+interval = 84600
 
 # [[targets]]
 # symbol = "BP"

@@ -17,3 +17,4 @@ orca_whirlpools_core = "2"
 spl-token = "9"
 spl-associated-token-account-interface = "2"
 solana-system-interface = "3"
+clap = { version = "4", features = ["derive"] }

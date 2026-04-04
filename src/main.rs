@@ -2,6 +2,7 @@ pub mod config;
 pub mod orca;
 pub mod wsol;
 
+use clap::Parser;
 use orca_whirlpools_client::get_oracle_address;
 use orca_whirlpools_core::sqrt_price_to_price;
 use solana_sdk::{
@@ -13,7 +14,7 @@ use spl_associated_token_account_interface::{
     address::get_associated_token_address, instruction::create_associated_token_account_idempotent,
 };
 use std::time::Duration;
-use tokio::fs::read_to_string;
+use tokio::{fs::read_to_string, time::interval};
 
 use anyhow::Context;
 
@@ -32,11 +33,19 @@ use crate::{
     wsol::WsolSwap,
 };
 
+#[derive(Parser, Debug)]
+struct CliArgs {
+    #[arg(long, action)]
+    daemon: bool,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::TRACE)
         .init();
+
+    let cli_args = CliArgs::parse();
 
     let config_str = read_to_string("config.toml")
         .await
@@ -57,31 +66,46 @@ async fn main() -> anyhow::Result<()> {
 
     let total_weight: u32 = config.targets.iter().map(|x| x.weight).sum();
 
-    let balance = client.get_balance(&dca_wallet.pubkey()).await?;
-    let needed = (config.swap.amount_sol + config.wallet.reserve_sol) * 1e9;
-
-    if (balance as f64) < needed {
-        anyhow::bail!("Insufficient balance");
-    }
+    let mut interval = interval(Duration::from_secs(config.swap.interval));
 
     let rent_exempt = client
         .get_minimum_balance_for_rent_exemption(165)
         .await
         .context("Failed to fetch minimum balance for rent exemption")?;
 
-    for target in &config.targets {
-        if let Err(err) = dca_target(
-            &config,
-            &client,
-            &dca_wallet,
-            target,
-            total_weight,
-            rent_exempt,
-        )
-        .await
-        {
-            tracing::error!("Failed to dca {target:?}: {err:?}");
+    let dca_run = async || -> anyhow::Result<()> {
+        let balance = client.get_balance(&dca_wallet.pubkey()).await?;
+        let needed = (config.swap.amount_sol + config.wallet.reserve_sol) * 1e9;
+
+        if (balance as f64) < needed {
+            tracing::warn!("Insufficient balance");
+        } else {
+            for target in &config.targets {
+                if let Err(err) = dca_target(
+                    &config,
+                    &client,
+                    &dca_wallet,
+                    target,
+                    total_weight,
+                    rent_exempt,
+                )
+                .await
+                {
+                    tracing::error!("Failed to dca {target:?}: {err:?}");
+                }
+            }
         }
+
+        Ok(())
+    };
+
+    if cli_args.daemon {
+        loop {
+            interval.tick().await;
+            dca_run().await?;
+        }
+    } else {
+        dca_run().await?;
     }
 
     Ok(())
