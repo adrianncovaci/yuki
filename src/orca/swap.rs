@@ -10,11 +10,10 @@ pub struct SwapParams {
     pub b_token_decimals: u32,
     pub b_token_price: f64,
     pub authority: Pubkey,
-    pub a_token_ata: Pubkey,
-    pub b_token_ata: Pubkey,
+    pub wsol_ata: Pubkey,
+    pub dca_token_ata: Pubkey,
     pub tick_arrays: [Pubkey; 3],
     pub oracle: Pubkey,
-    pub a_to_b: bool,
     pub amount_specified_is_input: bool,
 }
 
@@ -27,17 +26,27 @@ pub fn swap(params: SwapParams) -> Instruction {
         b_token_decimals,
         b_token_price,
         authority,
-        a_token_ata,
-        b_token_ata,
+        wsol_ata,
+        dca_token_ata,
         tick_arrays,
         oracle,
-        a_to_b,
         amount_specified_is_input,
     } = params;
 
     let amount_sol = amount as f64 / 1e9;
 
-    let expected_price = (amount_sol * b_token_price * 10f64.powi(b_token_decimals as i32)) as u64;
+    let a_to_b = whirlpool.token_mint_a == spl_token::native_mint::ID;
+
+    let (a_token_ata, b_token_ata, expected_price) = if a_to_b {
+        let expected_price =
+            (amount_sol * b_token_price * 10f64.powi(b_token_decimals as i32)) as u64;
+        (wsol_ata, dca_token_ata, expected_price)
+    } else {
+        let expected_price =
+            (amount_sol / b_token_price * 10f64.powi(b_token_decimals as i32)) as u64;
+        (dca_token_ata, wsol_ata, expected_price)
+    };
+
     let other_amount_threshold =
         (expected_price as f64 * (10_000 - slippage_bps) as f64 / 10_000.0) as u64;
 

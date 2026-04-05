@@ -102,10 +102,14 @@ async fn main() -> anyhow::Result<()> {
     if cli_args.daemon {
         loop {
             interval.tick().await;
-            dca_run().await?;
+            if let Err(err) = dca_run().await {
+                tracing::error!("DCA round failed: {err:?}");
+            }
         }
     } else {
-        dca_run().await?;
+        if let Err(err) = dca_run().await {
+            tracing::error!("DCA round failed: {err:?}");
+        }
     }
 
     Ok(())
@@ -141,6 +145,7 @@ pub async fn dca_target(
         target.orca_pool,
         whirlpool.tick_current_index,
         whirlpool.tick_spacing,
+        whirlpool.token_mint_a == spl_token::native_mint::ID,
     )?;
 
     let swap_params = SwapParams {
@@ -151,11 +156,10 @@ pub async fn dca_target(
         b_token_decimals: target.decimals,
         b_token_price: price,
         authority: wallet.pubkey(),
-        a_token_ata: wsol_swap.keypair.pubkey(),
-        b_token_ata: ata,
+        wsol_ata: wsol_swap.keypair.pubkey(),
+        dca_token_ata: ata,
         tick_arrays: tick_array.inner,
         oracle,
-        a_to_b: true,
         amount_specified_is_input: true,
     };
 
