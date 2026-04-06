@@ -77,8 +77,14 @@ async fn main() -> anyhow::Result<()> {
         let balance = client.get_balance(&dca_wallet.pubkey()).await?;
         let needed = (config.swap.amount_sol + config.wallet.reserve_sol) * 1e9;
 
+        tracing::info!("DCA round starting | balance: {:.4} SOL", balance as f64 / 1e9);
+
         if (balance as f64) < needed {
-            tracing::warn!("Insufficient balance");
+            tracing::warn!(
+                "Insufficient balance: {:.4} SOL < {:.4} SOL needed",
+                balance as f64 / 1e9,
+                needed / 1e9
+            );
         } else {
             for target in &config.targets {
                 if let Err(err) = dca_target(
@@ -103,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
         loop {
             interval.tick().await;
             if let Err(err) = dca_run().await {
-                tracing::error!("DCA round failed: {err:?}");
+                tracing::error!("DCA round failed: {err:?}!");
             }
         }
     } else {
@@ -129,14 +135,21 @@ pub async fn dca_target(
 
     let price = sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
 
+    let amount = (config.swap.amount_sol
+        * LAMPORTS_PER_SOL as f64
+        * (target.weight as f64 / total_weight as f64)) as u64;
+
+    tracing::info!(
+        "{} | price: {:.6} | amount: {:.4} SOL",
+        target.symbol,
+        price,
+        amount as f64 / 1e9
+    );
+
     let recent_blockhash = client
         .get_latest_blockhash()
         .await
         .context("Failed to get latest blockhash")?;
-
-    let amount = (config.swap.amount_sol
-        * LAMPORTS_PER_SOL as f64
-        * (target.weight as f64 / total_weight as f64)) as u64;
 
     let ata = get_associated_token_address(&wallet.pubkey(), &target.mint_address);
     let wsol_swap = WsolSwap::new(&wallet.pubkey(), amount, rent_exempt)?;
@@ -186,7 +199,7 @@ pub async fn dca_target(
 
     let signature = client.send_and_confirm_transaction(&tx).await?;
 
-    tracing::info!("{signature:#?}");
+    tracing::info!("{} | swapped {:.4} SOL | tx: {signature}", target.symbol, amount as f64 / 1e9);
 
     Ok(())
 }
