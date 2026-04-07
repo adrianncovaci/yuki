@@ -15,32 +15,37 @@ interval = 86400
 # symbol = "BP"
 # mint_address = "BPxxfRCXkUVhig4HS1Lh7kZqV6SPJhzfEk4x6fVBjPCy"
 # weight = 25
-# orca_pool = ""  # Orca pool address for SOL/BP
- 
+# raydium_pool = ""  # Raydium pool address for SOL/BP
+# decimals = 9
+
 [[targets]]
 symbol = "JUP"
 mint_address = "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
 weight = 25
-orca_pool = "C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz"  # Orca pool address for SOL/JUP
+orca_pool = "C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz"
+# raydium_pool = ""
 decimals = 6
 
 # [[targets]]
 # symbol = "RAY"
 # mint_address = "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"
 # weight = 25
-# orca_pool = ""  # Orca pool address for SOL/RAY
+# orca_pool = ""
+# raydium_pool = ""
 # decimals = 6
 
 [[targets]]
 symbol = "JTO"
 mint_address = "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL"
 weight = 25
-orca_pool = "2UhFnySoJi6c89aydGAGS7ZRemo2dbkFRhvSJqDX4gHJ"  # Orca pool address for SOL/JTO
+orca_pool = "2UhFnySoJi6c89aydGAGS7ZRemo2dbkFRhvSJqDX4gHJ"
+# raydium_pool = ""
 decimals = 9
 
 # [[targets]]
 # symbol = "USDC"
 # mint_address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 # weight = 25
-# orca_pool = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE"  # Orca pool address for SOL/USDC
+# orca_pool = "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE"
+# raydium_pool = ""
 # decimals = 6

@@ -129,9 +129,13 @@ pub async fn dca_target(
     total_weight: u32,
     rent_exempt: u64,
 ) -> anyhow::Result<()> {
-    let whirlpool = fetch_pool_bytes(client, target.orca_pool).await?;
+    let pool_address = target
+        .orca_pool
+        .context(format!("{}: no orca pool configured", target.symbol))?;
 
-    let (oracle, _) = get_oracle_address(&target.orca_pool)?;
+    let whirlpool = fetch_pool_bytes(client, pool_address).await?;
+
+    let (oracle, _) = get_oracle_address(&pool_address)?;
 
     let price = sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
 
@@ -155,7 +159,7 @@ pub async fn dca_target(
     let wsol_swap = WsolSwap::new(&wallet.pubkey(), amount, rent_exempt)?;
 
     let tick_array = TickArray::new(
-        target.orca_pool,
+        pool_address,
         whirlpool.tick_current_index,
         whirlpool.tick_spacing,
         whirlpool.token_mint_a == spl_token::native_mint::ID,
@@ -163,7 +167,7 @@ pub async fn dca_target(
 
     let swap_params = SwapParams {
         whirlpool,
-        pool_address: target.orca_pool,
+        pool_address,
         amount,
         slippage_bps: config.swap.slippage_bps,
         b_token_decimals: target.decimals,

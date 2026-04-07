@@ -38,8 +38,10 @@ pub struct Target {
     #[serde(deserialize_with = "deserialize_pubkey")]
     pub mint_address: Pubkey,
     pub weight: u32,
-    #[serde(deserialize_with = "deserialize_pubkey")]
-    pub orca_pool: Pubkey,
+    #[serde(default, deserialize_with = "deserialize_optional_pubkey")]
+    pub orca_pool: Option<Pubkey>,
+    #[serde(default, deserialize_with = "deserialize_optional_pubkey")]
+    pub raydium_pool: Option<Pubkey>,
     pub decimals: u32,
 }
 
@@ -49,4 +51,15 @@ where
 {
     let pubkey = String::deserialize(de)?;
     Pubkey::from_str(&pubkey).map_err(D::Error::custom)
+}
+
+fn deserialize_optional_pubkey<'de, D>(de: D) -> Result<Option<Pubkey>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let pubkey: Option<String> = Option::deserialize(de)?;
+    match pubkey {
+        Some(s) => Pubkey::from_str(&s).map(Some).map_err(D::Error::custom),
+        None => Ok(None),
+    }
 }
