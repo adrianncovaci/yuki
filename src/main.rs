@@ -113,20 +113,16 @@ async fn main() -> anyhow::Result<()> {
         if let Some(pool) = target.raydium_pool {
             let data = raydium::pool::fetch_pool_bytes(&client, pool).await?;
 
-            tracing::info!("A mint decimals: {:?}", data.mint_decimals0);
+            let a_to_b = data.token_mint1.to_bytes() == spl_token::native_mint::id().to_bytes();
 
-            tracing::info!("B mint decimals: {:?}", data.mint_decimals1);
-
-            let sqrt_price = data.sqrt_price_x64 as f64 / 2u128.pow(64) as f64;
-
-            let price = sqrt_price * sqrt_price;
-
-            let price = price / 10f64.powi(data.mint_decimals1 as i32 - data.mint_decimals0 as i32);
+            let price = raydium::pool::sqrt_price_to_price(
+                data.sqrt_price_x64,
+                data.mint_decimals0,
+                data.mint_decimals1,
+                a_to_b,
+            );
 
             tracing::info!("price: {price:?}");
-
-            //let price = sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
-            //tracing::info!("data: {data:?}");
         }
     }
 
