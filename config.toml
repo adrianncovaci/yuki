@@ -23,7 +23,7 @@ symbol = "JUP"
 mint_address = "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
 weight = 25
 orca_pool = "C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz"
-# raydium_pool = ""
+raydium_pool = "EZVkeboWeXygtq8LMyENHyXdF5wpYrtExRNH9UwB1qYw"
 decimals = 6
 
 # [[targets]]
@@ -39,7 +39,7 @@ symbol = "JTO"
 mint_address = "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL"
 weight = 25
 orca_pool = "2UhFnySoJi6c89aydGAGS7ZRemo2dbkFRhvSJqDX4gHJ"
-# raydium_pool = ""
+raydium_pool = "JVoPtWWDsRcLvQosu5fWc2CaNF6jEtJzbxdPtcEuvZo"
 decimals = 9
 
 # [[targets]]

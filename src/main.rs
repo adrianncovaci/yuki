@@ -1,5 +1,6 @@
 pub mod config;
 pub mod orca;
+pub mod raydium;
 pub mod wsol;
 
 use clap::Parser;
@@ -77,7 +78,10 @@ async fn main() -> anyhow::Result<()> {
         let balance = client.get_balance(&dca_wallet.pubkey()).await?;
         let needed = (config.swap.amount_sol + config.wallet.reserve_sol) * 1e9;
 
-        tracing::info!("DCA round starting | balance: {:.4} SOL", balance as f64 / 1e9);
+        tracing::info!(
+            "DCA round starting | balance: {:.4} SOL",
+            balance as f64 / 1e9
+        );
 
         if (balance as f64) < needed {
             tracing::warn!(
@@ -105,18 +109,39 @@ async fn main() -> anyhow::Result<()> {
         Ok(())
     };
 
-    if cli_args.daemon {
-        loop {
-            interval.tick().await;
-            if let Err(err) = dca_run().await {
-                tracing::error!("DCA round failed: {err:?}!");
-            }
-        }
-    } else {
-        if let Err(err) = dca_run().await {
-            tracing::error!("DCA round failed: {err:?}");
+    for target in &config.targets {
+        if let Some(pool) = target.raydium_pool {
+            let data = raydium::pool::fetch_pool_bytes(&client, pool).await?;
+
+            tracing::info!("A mint decimals: {:?}", data.mint_decimals0);
+
+            tracing::info!("B mint decimals: {:?}", data.mint_decimals1);
+
+            let sqrt_price = data.sqrt_price_x64 as f64 / 2u128.pow(64) as f64;
+
+            let price = sqrt_price * sqrt_price;
+
+            let price = price / 10f64.powi(data.mint_decimals1 as i32 - data.mint_decimals0 as i32);
+
+            tracing::info!("price: {price:?}");
+
+            //let price = sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
+            //tracing::info!("data: {data:?}");
         }
     }
+
+    //if cli_args.daemon {
+    //    loop {
+    //        interval.tick().await;
+    //        if let Err(err) = dca_run().await {
+    //            tracing::error!("DCA round failed: {err:?}!");
+    //        }
+    //    }
+    //} else {
+    //    if let Err(err) = dca_run().await {
+    //        tracing::error!("DCA round failed: {err:?}");
+    //    }
+    //}
 
     Ok(())
 }
@@ -203,7 +228,11 @@ pub async fn dca_target(
 
     let signature = client.send_and_confirm_transaction(&tx).await?;
 
-    tracing::info!("{} | swapped {:.4} SOL | tx: {signature}", target.symbol, amount as f64 / 1e9);
+    tracing::info!(
+        "{} | swapped {:.4} SOL | tx: {signature}",
+        target.symbol,
+        amount as f64 / 1e9
+    );
 
     Ok(())
 }
