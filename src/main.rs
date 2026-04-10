@@ -122,7 +122,22 @@ async fn main() -> anyhow::Result<()> {
                 a_to_b,
             );
 
-            tracing::info!("price: {price:?}");
+            tracing::info!("raydium price: {price:?}");
+        }
+
+        if let Some(pool) = target.orca_pool {
+            let data = fetch_pool_bytes(&client, pool).await?;
+
+            let a_to_b = data.token_mint_b.to_bytes() == spl_token::native_mint::id().to_bytes();
+
+            let price = raydium::pool::sqrt_price_to_price(
+                data.sqrt_price,
+                target.decimals as u8,
+                9,
+                a_to_b,
+            );
+
+            tracing::info!("orca price: {price:?}");
         }
     }
 
