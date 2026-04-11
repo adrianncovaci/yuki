@@ -1,50 +1,61 @@
-use anyhow::Context;
 use solana_sdk::pubkey::Pubkey;
+
+use crate::raydium::RAYDIUM_CLMM_PROGRAM;
+
+const TICK_ARRAY_SIZE: u16 = 60;
 
 pub struct TickArray {
     pub inner: [Pubkey; 3],
 }
 
-//impl TickArray {
-//    pub fn new(
-//        raydium_pool: Pubkey,
-//        tick_current_index: i32,
-//        tick_spacing: u16,
-//        a_to_b: bool,
-//    ) -> anyhow::Result<Self> {
-//        let ticks_in_array = whirlpool_tick_spacing as i32 * TICK_ARRAY_SIZE as i32;
-//
-//        let tick_arr0_idx =
-//            get_tick_array_start_tick_index(tick_current_index, whirlpool_tick_spacing);
-//
-//        let inner = if a_to_b {
-//            let tick_arr1_idx = tick_arr0_idx - ticks_in_array;
-//
-//            let tick_arr2_idx = tick_arr1_idx - ticks_in_array;
-//
-//            let tick_arr0 = get_tick_array_address(&whirlpool, tick_arr0_idx)
-//                .context("Failed to get tick array address")?;
-//            let tick_arr1 = get_tick_array_address(&whirlpool, tick_arr1_idx)
-//                .context("Failed to get tick array address")?;
-//            let tick_arr2 = get_tick_array_address(&whirlpool, tick_arr2_idx)
-//                .context("Failed to get tick array address")?;
-//
-//            [tick_arr0.0, tick_arr1.0, tick_arr2.0]
-//        } else {
-//            let tick_arr1_idx = tick_arr0_idx + ticks_in_array;
-//
-//            let tick_arr2_idx = tick_arr1_idx + ticks_in_array;
-//
-//            let tick_arr0 = get_tick_array_address(&whirlpool, tick_arr0_idx)
-//                .context("Failed to get tick array address")?;
-//            let tick_arr1 = get_tick_array_address(&whirlpool, tick_arr1_idx)
-//                .context("Failed to get tick array address")?;
-//            let tick_arr2 = get_tick_array_address(&whirlpool, tick_arr2_idx)
-//                .context("Failed to get tick array address")?;
-//
-//            [tick_arr0.0, tick_arr1.0, tick_arr2.0]
-//        };
-//
-//        Ok(Self { inner })
-//    }
-//}
+impl TickArray {
+    pub fn new(pool: Pubkey, start_idx: i32, tick_spacing: u16, a_to_b: bool) -> Self {
+        let ticks_in_array = (tick_spacing * TICK_ARRAY_SIZE) as i32;
+        let inner = if a_to_b {
+            let tick1 = Self::get_pda(
+                pool,
+                Self::get_tick_array_start_tick_index(start_idx, tick_spacing),
+            );
+            let tick2 = Self::get_pda(
+                pool,
+                Self::get_tick_array_start_tick_index(start_idx - ticks_in_array, tick_spacing),
+            );
+            let tick3 = Self::get_pda(
+                pool,
+                Self::get_tick_array_start_tick_index(start_idx - 2 * ticks_in_array, tick_spacing),
+            );
+            [tick1, tick2, tick3]
+        } else {
+            let tick1 = Self::get_pda(
+                pool,
+                Self::get_tick_array_start_tick_index(start_idx, tick_spacing),
+            );
+            let tick2 = Self::get_pda(
+                pool,
+                Self::get_tick_array_start_tick_index(start_idx + ticks_in_array, tick_spacing),
+            );
+            let tick3 = Self::get_pda(
+                pool,
+                Self::get_tick_array_start_tick_index(start_idx + 2 * ticks_in_array, tick_spacing),
+            );
+            [tick1, tick2, tick3]
+        };
+        Self { inner }
+    }
+
+    fn get_pda(pool: Pubkey, start_idx: i32) -> Pubkey {
+        Pubkey::find_program_address(
+            &[b"tick_array", pool.as_ref(), &start_idx.to_be_bytes()],
+            &RAYDIUM_CLMM_PROGRAM,
+        )
+        .0
+    }
+
+    fn get_tick_array_start_tick_index(tick_index: i32, tick_spacing: u16) -> i32 {
+        let tick_spacing = tick_spacing as i32;
+        let real_index = tick_index
+            .div_euclid(tick_spacing)
+            .div_euclid(TICK_ARRAY_SIZE as i32);
+        real_index * tick_spacing * TICK_ARRAY_SIZE as i32
+    }
+}

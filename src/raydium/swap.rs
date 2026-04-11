@@ -1,16 +1,19 @@
 use borsh::BorshSerialize;
 use raydium_clmm::accounts::PoolState;
-use solana_sdk::pubkey;
 use solana_sdk::{
     message::{AccountMeta, Instruction},
     pubkey::Pubkey,
 };
 
-const RAYDIUM_CLMM_PROGRAM: Pubkey = pubkey!("CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK");
+use crate::raydium::RAYDIUM_CLMM_PROGRAM;
+
 const SWAP_DISCRIMINATOR: [u8; 8] = [43, 4, 237, 11, 26, 201, 30, 98];
 const TOKEN_PROGRAM_2022: Pubkey =
     solana_sdk::pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 const MEMO_PROGRAM: Pubkey = solana_sdk::pubkey!("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
+
+const MIN_SQRT_PRICE_X64: u128 = 4295048016;
+const MAX_SQRT_PRICE_X64: u128 = 79226673521066979257578248091;
 
 #[derive(BorshSerialize)]
 pub struct SwapArgs {
@@ -88,10 +91,16 @@ pub fn swap(params: SwapParams) -> Instruction {
     let other_amount_threshold =
         (expected_output as f64 * (10_000 - slippage_bps) as f64 / 10_000.0) as u64;
 
+    let sqrt_price_limit_x64 = if a_to_b {
+        MIN_SQRT_PRICE_X64
+    } else {
+        MAX_SQRT_PRICE_X64
+    };
+
     let args = SwapArgs {
         amount,
         other_amount_threshold,
-        sqrt_price_limit_x64: 0,
+        sqrt_price_limit_x64,
         is_base_input: true,
     };
 
