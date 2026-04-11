@@ -4,18 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-serde = { version = "1", features = ["derive"] }
-solana-sdk = "4"
-solana-rpc-client = "4.0.0-beta.3"
 anyhow = "1"
-tracing = "0.1"
-tracing-subscriber = "0.3"
-toml = "0.8"
+borsh = "1"
+clap = { version = "4", features = ["derive"] }
 orca_whirlpools_client = "7"
 orca_whirlpools_core = "2"
-spl-token = "9"
-spl-associated-token-account-interface = "2"
-solana-system-interface = "3"
-clap = { version = "4", features = ["derive"] }
 raydium_clmm = "0.1"
+serde = { version = "1", features = ["derive"] }
+solana-rpc-client = "4.0.0-beta.3"
+solana-sdk = "4"
+solana-system-interface = "3"
+spl-associated-token-account-interface = "2"
+spl-token = "9"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = "0.3"

@@ -5178,6 +5178,7 @@ name = "yuki"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "borsh 1.6.1",
  "clap",
  "orca_whirlpools_client",
  "orca_whirlpools_core",

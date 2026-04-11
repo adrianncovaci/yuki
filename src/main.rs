@@ -6,8 +6,10 @@ pub mod wsol;
 use clap::Parser;
 use orca_whirlpools_client::get_oracle_address;
 use orca_whirlpools_core::sqrt_price_to_price;
+use solana_sdk::pubkey;
 use solana_sdk::{
     native_token::LAMPORTS_PER_SOL,
+    pubkey::Pubkey,
     signature::{Keypair, read_keypair_file},
     signer::Signer,
 };
@@ -33,6 +35,8 @@ use crate::{
     },
     wsol::WsolSwap,
 };
+
+pub const MEMO_PROGRAM: Pubkey = pubkey!("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
 #[derive(Parser, Debug)]
 struct CliArgs {
@@ -110,35 +114,39 @@ async fn main() -> anyhow::Result<()> {
     };
 
     for target in &config.targets {
-        if let Some(pool) = target.raydium_pool {
+        tracing::info!("{:?}", target.symbol);
+
+        let raydium_price = if let Some(pool) = target.raydium_pool {
             let data = raydium::pool::fetch_pool_bytes(&client, pool).await?;
 
             let a_to_b = data.token_mint1.to_bytes() == spl_token::native_mint::id().to_bytes();
 
-            let price = raydium::pool::sqrt_price_to_price(
+            Some(raydium::pool::sqrt_price_to_price(
                 data.sqrt_price_x64,
                 data.mint_decimals0,
                 data.mint_decimals1,
                 a_to_b,
-            );
+            ))
+        } else {
+            None
+        };
 
-            tracing::info!("raydium price: {price:?}");
-        }
-
-        if let Some(pool) = target.orca_pool {
+        let orca_price = if let Some(pool) = target.orca_pool {
             let data = fetch_pool_bytes(&client, pool).await?;
 
             let a_to_b = data.token_mint_b.to_bytes() == spl_token::native_mint::id().to_bytes();
 
-            let price = raydium::pool::sqrt_price_to_price(
+            Some(raydium::pool::sqrt_price_to_price(
                 data.sqrt_price,
                 target.decimals as u8,
                 9,
                 a_to_b,
-            );
+            ))
+        } else {
+            None
+        };
 
-            tracing::info!("orca price: {price:?}");
-        }
+        tracing::info!("raydium price: {raydium_price:?}, orca price: {orca_price:?}");
     }
 
     //if cli_args.daemon {
