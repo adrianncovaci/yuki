@@ -104,15 +104,11 @@ async fn main() -> anyhow::Result<()> {
 
                 let (raydium_price, raydium_pool) = if let Some(pool) = target.raydium_pool {
                     let data = raydium::pool::fetch_pool_bytes(&client, pool).await?;
-
-                    let a_to_b =
-                        data.token_mint0.to_bytes() == spl_token::native_mint::id().to_bytes();
                     (
                         Some(raydium::pool::sqrt_price_to_price(
                             data.sqrt_price_x64,
                             data.mint_decimals0,
                             data.mint_decimals1,
-                            a_to_b,
                         )),
                         Some(data),
                     )
@@ -122,15 +118,11 @@ async fn main() -> anyhow::Result<()> {
 
                 let (orca_price, whirlpool) = if let Some(pool) = target.orca_pool {
                     let data = orca::pool::fetch_pool_bytes(&client, pool).await?;
-
-                    let a_to_b = data.token_mint_a == spl_token::native_mint::id();
-
                     (
                         Some(raydium::pool::sqrt_price_to_price(
                             data.sqrt_price,
                             target.decimals as u8,
                             9,
-                            a_to_b,
                         )),
                         Some(data),
                     )
@@ -218,11 +210,9 @@ pub async fn orca_dca_target(
         .orca_pool
         .context(format!("{}: no orca pool configured", target.symbol))?;
 
-    let a_to_b = whirlpool.token_mint_a == spl_token::native_mint::id();
-
     let (oracle, _) = get_oracle_address(&pool_address)?;
 
-    let price = sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9, a_to_b);
+    let price = sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
 
     let amount = (config.swap.amount_sol
         * LAMPORTS_PER_SOL as f64
@@ -316,7 +306,7 @@ pub async fn raydium_dca_target(
 
     let sol_is_mint0 = pool.token_mint0.to_bytes() == spl_token::native_mint::id().to_bytes();
 
-    let price = sqrt_price_to_price(pool.sqrt_price_x64, target.decimals as u8, 9, sol_is_mint0);
+    let price = sqrt_price_to_price(pool.sqrt_price_x64, target.decimals as u8, 9);
 
     let amount = (config.swap.amount_sol
         * LAMPORTS_PER_SOL as f64
