@@ -12,8 +12,8 @@ const TOKEN_PROGRAM_2022: Pubkey =
     solana_sdk::pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 const MEMO_PROGRAM: Pubkey = solana_sdk::pubkey!("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
-const MIN_SQRT_PRICE_X64: u128 = 4295048016;
-const MAX_SQRT_PRICE_X64: u128 = 79226673521066979257578248091;
+const MIN_SQRT_PRICE_X64: u128 = 4295048016 + 1;
+const MAX_SQRT_PRICE_X64: u128 = 79226673521066979257578248091 - 1;
 
 #[derive(BorshSerialize)]
 pub struct SwapArgs {
