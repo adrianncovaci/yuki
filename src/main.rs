@@ -15,10 +15,11 @@ use solana_sdk::{
 use spl_associated_token_account_interface::{
     address::get_associated_token_address, instruction::create_associated_token_account_idempotent,
 };
+use std::str::FromStr;
 use std::time::Duration;
 use tokio::{fs::read_to_string, time::interval};
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 
 use solana_rpc_client::{
     api::{config::CommitmentConfig, response::transaction::Transaction},
@@ -73,6 +74,14 @@ async fn main() -> anyhow::Result<()> {
         .get_minimum_balance_for_rent_exemption(165)
         .await
         .context("Failed to fetch minimum balance for rent exemption")?;
+
+    let cold_wallet: Option<Pubkey> = std::env::var("COLD_WALLET")
+        .ok()
+        .map(|s| Pubkey::from_str(&s).expect("Invalid COLD_WALLET address"));
+
+    if let Some(cw) = cold_wallet {
+        tracing::info!("Cold wallet configured: {cw}");
+    }
 
     let dca_run = async || -> anyhow::Result<()> {
         let balance = client.get_balance(&dca_wallet.pubkey()).await?;
@@ -150,6 +159,7 @@ async fn main() -> anyhow::Result<()> {
                         total_weight,
                         rent_exempt,
                         whirlpool.context("Failed to fetch whirlpool")?,
+                        cold_wallet,
                     )
                     .await
                     {
@@ -164,6 +174,7 @@ async fn main() -> anyhow::Result<()> {
                         total_weight,
                         rent_exempt,
                         raydium_pool.context("Failed to fetch raydium pool")?,
+                        cold_wallet,
                     )
                     .await
                     {
@@ -192,6 +203,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn orca_dca_target(
     config: &Config,
     client: &RpcClient,
@@ -200,6 +212,7 @@ pub async fn orca_dca_target(
     total_weight: u32,
     rent_exempt: u64,
     whirlpool: Whirlpool,
+    cold_wallet: Option<Pubkey>,
 ) -> anyhow::Result<()> {
     let pool_address = target
         .orca_pool
@@ -281,9 +294,12 @@ pub async fn orca_dca_target(
         amount as f64 / 1e9
     );
 
+    transfer_to_cold_wallet(client, wallet, target, ata, cold_wallet).await?;
+
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn raydium_dca_target(
     config: &Config,
     client: &RpcClient,
@@ -292,6 +308,7 @@ pub async fn raydium_dca_target(
     total_weight: u32,
     rent_exempt: u64,
     pool: PoolState,
+    cold_wallet: Option<Pubkey>,
 ) -> anyhow::Result<()> {
     let pool_address = target
         .raydium_pool
@@ -384,6 +401,82 @@ pub async fn raydium_dca_target(
         "{} | swapped {:.4} SOL | tx: {signature}",
         target.symbol,
         amount as f64 / 1e9
+    );
+
+    transfer_to_cold_wallet(client, wallet, target, ata, cold_wallet).await?;
+
+    Ok(())
+}
+
+pub async fn transfer_to_cold_wallet(
+    client: &RpcClient,
+    wallet: &Keypair,
+    target: &Target,
+    ata: Pubkey,
+    cold_wallet: Option<Pubkey>,
+) -> anyhow::Result<()> {
+    let cold_wallet = match cold_wallet {
+        Some(cold_wallet) => cold_wallet,
+        None => return Ok(()),
+    };
+
+    let target_ata = get_associated_token_address(&cold_wallet, &target.mint_address);
+
+    let balance = client
+        .get_token_account_balance(&ata)
+        .await
+        .context("Failed to get ata client")?;
+
+    let balance = match balance.amount.parse::<u64>() {
+        Ok(0) => {
+            tracing::warn!("ATA balance is equal to 0");
+            return Ok(());
+        }
+        Ok(balance) => balance,
+        Err(err) => {
+            bail!("Failed to parse the amount: {err:?}");
+        }
+    };
+
+    let fresh_hash = client
+        .get_latest_blockhash()
+        .await
+        .context("Failed to fetch latest blockhash")?;
+
+    let ix = spl_token::instruction::transfer(
+        &spl_token::id(),
+        &ata,
+        &target_ata,
+        &wallet.pubkey(),
+        &[],
+        balance,
+    )
+    .context("Failed to create transfer ix")?;
+
+    let tx = Transaction::new_signed_with_payer(
+        &[
+            create_associated_token_account_idempotent(
+                &wallet.pubkey(),
+                &cold_wallet,
+                &target.mint_address,
+                &spl_token::id(),
+            ),
+            ix,
+        ],
+        Some(&wallet.pubkey()),
+        &[wallet],
+        fresh_hash,
+    );
+
+    let hash = client
+        .send_and_confirm_transaction(&tx)
+        .await
+        .context("Failed to send tx")?;
+
+    tracing::info!(
+        "{} | transferred {} to cold wallet | tx: {hash}",
+        target.symbol,
+        balance
     );
 
     Ok(())
