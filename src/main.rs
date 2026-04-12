@@ -35,6 +35,9 @@ use crate::{
 struct CliArgs {
     #[arg(long, action)]
     daemon: bool,
+
+    #[arg(long, default_value = "config.toml")]
+    config: String,
 }
 
 #[tokio::main]
@@ -45,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
 
     let cli_args = CliArgs::parse();
 
-    let config_str = read_to_string("config.toml")
+    let config_str = read_to_string(&cli_args.config)
         .await
         .context("Failed to read config file")?;
 
