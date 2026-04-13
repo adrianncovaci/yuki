@@ -1,6 +1,7 @@
 pub mod config;
 pub mod orca;
 pub mod raydium;
+pub mod telegram;
 pub mod wsol;
 
 use clap::Parser;
@@ -83,6 +84,17 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("Cold wallet configured: {cw}");
     }
 
+    let tg = match (
+        std::env::var("TELEGRAM_BOT_TOKEN"),
+        std::env::var("TELEGRAM_CHAT_ID"),
+    ) {
+        (Ok(token), Ok(chat_id)) => {
+            tracing::info!("Telegram notifications enabled");
+            Some(telegram::Telegram::new(token, chat_id))
+        }
+        _ => None,
+    };
+
     let dca_run = async || -> anyhow::Result<()> {
         let balance = client.get_balance(&dca_wallet.pubkey()).await?;
         let needed = (config.swap.amount_sol + config.wallet.reserve_sol) * 1e9;
@@ -93,12 +105,18 @@ async fn main() -> anyhow::Result<()> {
         );
 
         if (balance as f64) < needed {
-            tracing::warn!(
-                "Insufficient balance: {:.4} SOL < {:.4} SOL needed",
+            let msg = format!(
+                "⚠️ Insufficient balance: {:.4} SOL < {:.4} SOL needed",
                 balance as f64 / 1e9,
                 needed / 1e9
             );
+            tracing::warn!("{msg}");
+            if let Some(ref tg) = tg {
+                let _ = tg.send(&msg).await;
+            }
         } else {
+            let mut results: Vec<String> = vec![];
+
             for target in &config.targets {
                 tracing::info!("{:?}", target.symbol);
 
@@ -138,12 +156,16 @@ async fn main() -> anyhow::Result<()> {
                     (None, Some(_)) => false,
                     (None, None) => {
                         tracing::error!("no pool");
+                        results.push(format!("❌ {} | no pool configured", target.symbol));
                         continue;
                     }
                 };
 
+                let dex = if should_use_orca { "Orca" } else { "Raydium" };
+                let amount_sol = config.swap.amount_sol * (target.weight as f64 / total_weight as f64);
+
                 if should_use_orca {
-                    if let Err(err) = orca_dca_target(
+                    match orca_dca_target(
                         &config,
                         &client,
                         &dca_wallet,
@@ -155,10 +177,17 @@ async fn main() -> anyhow::Result<()> {
                     )
                     .await
                     {
-                        tracing::error!("Failed to dca {target:?}: {err:?}");
+                        Ok(()) => results.push(format!(
+                            "✅ {} | {:.4} SOL -> {}",
+                            target.symbol, amount_sol, dex
+                        )),
+                        Err(err) => {
+                            tracing::error!("Failed to dca {}: {err:?}", target.symbol);
+                            results.push(format!("❌ {} | {}", target.symbol, err));
+                        }
                     }
                 } else {
-                    if let Err(err) = raydium_dca_target(
+                    match raydium_dca_target(
                         &config,
                         &client,
                         &dca_wallet,
@@ -170,9 +199,26 @@ async fn main() -> anyhow::Result<()> {
                     )
                     .await
                     {
-                        tracing::error!("Failed to dca {target:?}: {err:?}");
+                        Ok(()) => results.push(format!(
+                            "✅ {} | {:.4} SOL -> {}",
+                            target.symbol, amount_sol, dex
+                        )),
+                        Err(err) => {
+                            tracing::error!("Failed to dca {}: {err:?}", target.symbol);
+                            results.push(format!("❌ {} | {}", target.symbol, err));
+                        }
                     }
                 }
+            }
+
+            if let Some(ref tg) = tg {
+                let remaining = client.get_balance(&dca_wallet.pubkey()).await.unwrap_or(0);
+                let summary = format!(
+                    "🔄 DCA Round Complete\nBalance: {:.4} SOL\n\n{}",
+                    remaining as f64 / 1e9,
+                    results.join("\n")
+                );
+                let _ = tg.send(&summary).await;
             }
         }
 
