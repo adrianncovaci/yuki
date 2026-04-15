@@ -1,4 +1,5 @@
 pub mod config;
+pub mod dex;
 pub mod orca;
 pub mod raydium;
 pub mod telegram;
@@ -27,9 +28,11 @@ use solana_rpc_client::{
     nonblocking::rpc_client::RpcClient,
 };
 
-use crate::raydium::pool::sqrt_price_to_price;
 use crate::{
     config::{Config, Target},
+    dex::{Dex, DexPool},
+    orca::dex::OrcaDex,
+    raydium::dex::RaydiumDex,
     wsol::WsolSwap,
 };
 
@@ -120,105 +123,104 @@ async fn main() -> anyhow::Result<()> {
             for target in &config.targets {
                 tracing::info!("{:?}", target.symbol);
 
-                let (raydium_price, raydium_pool) = if let Some(pool) = target.raydium_pool {
-                    let data = raydium::pool::fetch_pool_bytes(&client, pool).await?;
-                    (
-                        Some(raydium::pool::sqrt_price_to_price(
-                            data.sqrt_price_x64,
-                            data.mint_decimals0,
-                            data.mint_decimals1,
-                        )),
-                        Some(data),
-                    )
-                } else {
-                    (None, None)
+                let mut pools = vec![];
+
+                if let Some(pool) = target.raydium_pool {
+                    let pool = RaydiumDex::fetch_pool_bytes(&client, pool).await?;
+                    pools.push(DexPool::Raydium {
+                        price: RaydiumDex::sqrt_price_to_price(
+                            pool.sqrt_price_x64,
+                            pool.mint_decimals0,
+                            pool.mint_decimals1,
+                        ),
+                        pool,
+                    })
                 };
 
-                let (orca_price, whirlpool) = if let Some(pool) = target.orca_pool {
-                    let data = orca::pool::fetch_pool_bytes(&client, pool).await?;
-                    (
-                        Some(raydium::pool::sqrt_price_to_price(
-                            data.sqrt_price,
+                if let Some(pool) = target.orca_pool {
+                    let pool = OrcaDex::fetch_pool_bytes(&client, pool).await?;
+                    pools.push(DexPool::Orca {
+                        price: OrcaDex::sqrt_price_to_price(
+                            pool.sqrt_price,
                             target.decimals as u8,
                             9,
-                        )),
-                        Some(data),
-                    )
-                } else {
-                    (None, None)
+                        ),
+                        pool,
+                    })
                 };
 
-                tracing::info!("raydium price: {raydium_price:?}, orca price: {orca_price:?}");
+                pools.sort_by(|a, b| a.get_price().total_cmp(&b.get_price()));
 
-                let should_use_orca = match (orca_price, raydium_price) {
-                    (Some(o), Some(r)) => o < r,
-                    (Some(_), None) => true,
-                    (None, Some(_)) => false,
-                    (None, None) => {
-                        tracing::error!("no pool");
-                        results.push(format!("❌ {} | no pool configured", target.symbol));
-                        continue;
-                    }
-                };
+                let amount_sol =
+                    config.swap.amount_sol * (target.weight as f64 / total_weight as f64);
 
-                let dex = if should_use_orca { "Orca" } else { "Raydium" };
-                let amount_sol = config.swap.amount_sol * (target.weight as f64 / total_weight as f64);
+                for pool in pools {
+                    let dex_name = pool.name();
 
-                if should_use_orca {
-                    match orca_dca_target(
-                        &config,
-                        &client,
-                        &dca_wallet,
-                        target,
-                        total_weight,
-                        rent_exempt,
-                        whirlpool.context("Failed to fetch whirlpool")?,
-                        cold_wallet,
-                    )
-                    .await
-                    {
-                        Ok(()) => results.push(format!(
-                            "✅ {} | {:.4} SOL -> {}",
-                            target.symbol, amount_sol, dex
-                        )),
-                        Err(err) => {
-                            tracing::error!("Failed to dca {}: {err:?}", target.symbol);
-                            results.push(format!("❌ {} | {}", target.symbol, err));
+                    let result = match pool {
+                        DexPool::Orca {
+                            pool: whirlpool, ..
+                        } => {
+                            orca_dca_target(
+                                &config,
+                                &client,
+                                &dca_wallet,
+                                target,
+                                total_weight,
+                                rent_exempt,
+                                whirlpool,
+                                cold_wallet,
+                            )
+                            .await
                         }
-                    }
-                } else {
-                    match raydium_dca_target(
-                        &config,
-                        &client,
-                        &dca_wallet,
-                        target,
-                        total_weight,
-                        rent_exempt,
-                        raydium_pool.context("Failed to fetch raydium pool")?,
-                        cold_wallet,
-                    )
-                    .await
-                    {
-                        Ok(()) => results.push(format!(
-                            "✅ {} | {:.4} SOL -> {}",
-                            target.symbol, amount_sol, dex
-                        )),
+                        DexPool::Raydium {
+                            pool: raydium_pool, ..
+                        } => {
+                            raydium_dca_target(
+                                &config,
+                                &client,
+                                &dca_wallet,
+                                target,
+                                total_weight,
+                                rent_exempt,
+                                raydium_pool,
+                                cold_wallet,
+                            )
+                            .await
+                        }
+                    };
+
+                    match result {
+                        Ok(()) => {
+                            results.push(format!(
+                                "✅ {} | {:.4} SOL -> {}",
+                                target.symbol, amount_sol, dex_name
+                            ));
+                            break;
+                        }
                         Err(err) => {
-                            tracing::error!("Failed to dca {}: {err:?}", target.symbol);
-                            results.push(format!("❌ {} | {}", target.symbol, err));
+                            tracing::warn!(
+                                "{} | {} failed: {err:#}, trying next...",
+                                target.symbol,
+                                dex_name
+                            );
+                            results.push(format!(
+                                "❌ {} | {} failed: {}",
+                                target.symbol, dex_name, err
+                            ));
                         }
                     }
                 }
-            }
 
-            if let Some(ref tg) = tg {
-                let remaining = client.get_balance(&dca_wallet.pubkey()).await.unwrap_or(0);
-                let summary = format!(
-                    "🔄 DCA Round Complete\nBalance: {:.4} SOL\n\n{}",
-                    remaining as f64 / 1e9,
-                    results.join("\n")
-                );
-                let _ = tg.send(&summary).await;
+                if let Some(ref tg) = tg {
+                    let remaining = client.get_balance(&dca_wallet.pubkey()).await.unwrap_or(0);
+                    let summary = format!(
+                        "🔄 DCA Round Complete\nBalance: {:.4} SOL\n\n{}",
+                        remaining as f64 / 1e9,
+                        results.join("\n")
+                    );
+                    let _ = tg.send(&summary).await;
+                }
             }
         }
 
@@ -258,7 +260,7 @@ pub async fn orca_dca_target(
 
     let (oracle, _) = get_oracle_address(&pool_address)?;
 
-    let price = sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
+    let price = OrcaDex::sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
 
     let amount = (config.swap.amount_sol
         * LAMPORTS_PER_SOL as f64
@@ -286,7 +288,7 @@ pub async fn orca_dca_target(
         whirlpool.token_mint_a == spl_token::native_mint::ID,
     )?;
 
-    let swap_params = orca::swap::SwapParams {
+    let swap_params = orca::dex::SwapParams {
         whirlpool,
         pool_address,
         amount,
@@ -301,7 +303,7 @@ pub async fn orca_dca_target(
         amount_specified_is_input: true,
     };
 
-    let swap_ix = orca::swap::swap(swap_params);
+    let swap_ix = OrcaDex::swap(swap_params);
 
     let tx = Transaction::new_signed_with_payer(
         &[
@@ -352,7 +354,7 @@ pub async fn raydium_dca_target(
 
     let sol_is_mint0 = pool.token_mint0.to_bytes() == spl_token::native_mint::id().to_bytes();
 
-    let price = sqrt_price_to_price(pool.sqrt_price_x64, target.decimals as u8, 9);
+    let price = RaydiumDex::sqrt_price_to_price(pool.sqrt_price_x64, target.decimals as u8, 9);
 
     let amount = (config.swap.amount_sol
         * LAMPORTS_PER_SOL as f64
@@ -410,7 +412,7 @@ pub async fn raydium_dca_target(
         tick_arrays: tick_array.inner,
     };
 
-    let swap_ix = raydium::swap::swap(swap_params);
+    let swap_ix = RaydiumDex::swap(swap_params);
 
     let tx = Transaction::new_signed_with_payer(
         &[

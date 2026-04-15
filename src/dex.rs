@@ -1,0 +1,43 @@
+use orca_whirlpools_client::Whirlpool;
+use raydium_clmm::accounts::PoolState;
+use solana_rpc_client::nonblocking::rpc_client::RpcClient;
+use solana_sdk::{message::Instruction, pubkey::Pubkey};
+
+pub trait Dex {
+    type Pool;
+    type SwapParams;
+
+    fn sqrt_price_to_price(sqrt_price: u128, decimals_0: u8, decimals_1: u8) -> f64 {
+        let sqrt_price = sqrt_price as f64 / 2u128.pow(64) as f64;
+        let price = sqrt_price * sqrt_price;
+        price * 10f64.powi(decimals_0 as i32 - decimals_1 as i32)
+    }
+
+    fn fetch_pool_bytes(
+        client: &RpcClient,
+        pool_mint: Pubkey,
+    ) -> impl Future<Output = Result<Self::Pool, anyhow::Error>> + Send;
+
+    fn swap(params: Self::SwapParams) -> Instruction;
+}
+
+pub enum DexPool {
+    Orca { pool: Whirlpool, price: f64 },
+    Raydium { pool: PoolState, price: f64 },
+}
+
+impl DexPool {
+    pub fn name(&self) -> &'static str {
+        match self {
+            DexPool::Orca { .. } => "Orca",
+            DexPool::Raydium { .. } => "Raydium",
+        }
+    }
+
+    pub fn get_price(&self) -> f64 {
+        match self {
+            DexPool::Orca { price, .. } => *price,
+            DexPool::Raydium { price, .. } => *price,
+        }
+    }
+}

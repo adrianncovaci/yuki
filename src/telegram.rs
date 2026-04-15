@@ -16,10 +16,7 @@ impl Telegram {
     }
 
     pub async fn send(&self, text: &str) -> anyhow::Result<()> {
-        let url = format!(
-            "https://api.telegram.org/bot{}/sendMessage",
-            self.token
-        );
+        let url = format!("https://api.telegram.org/bot{}/sendMessage", self.token);
 
         self.client
             .post(&url)
