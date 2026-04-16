@@ -126,30 +126,45 @@ async fn main() -> anyhow::Result<()> {
                 let mut pools = vec![];
 
                 if let Some(pool) = target.raydium_pool {
-                    let pool = RaydiumDex::fetch_pool_bytes(&client, pool).await?;
-                    pools.push(DexPool::Raydium {
-                        price: RaydiumDex::sqrt_price_to_price(
-                            pool.sqrt_price_x64,
-                            pool.mint_decimals0,
-                            pool.mint_decimals1,
-                        ),
-                        pool,
-                    })
+                    match RaydiumDex::fetch_pool_bytes(&client, pool).await {
+                        Ok(pool) => {
+                            pools.push(DexPool::Raydium {
+                                price: RaydiumDex::sqrt_price_to_price(
+                                    pool.sqrt_price_x64,
+                                    pool.mint_decimals0,
+                                    pool.mint_decimals1,
+                                ),
+                                pool,
+                            })
+                        }
+                        Err(err) => {
+                            tracing::error!("Failed to fetch raydium pool: {err:?}");
+                        }
+                    }
                 };
 
                 if let Some(pool) = target.orca_pool {
-                    let pool = OrcaDex::fetch_pool_bytes(&client, pool).await?;
-                    pools.push(DexPool::Orca {
-                        price: OrcaDex::sqrt_price_to_price(
-                            pool.sqrt_price,
-                            target.decimals as u8,
-                            9,
-                        ),
-                        pool,
-                    })
+                    match OrcaDex::fetch_pool_bytes(&client, pool).await {
+                        Ok(pool) => {
+                            let (dec_0, dec_1) =
+                                if pool.token_mint_a == spl_token::native_mint::id() {
+                                    (9u8, target.decimals as u8)
+                                } else {
+                                    (target.decimals as u8, 9u8)
+                                };
+
+                            pools.push(DexPool::Orca {
+                                price: OrcaDex::sqrt_price_to_price(pool.sqrt_price, dec_0, dec_1),
+                                pool,
+                            })
+                        }
+                        Err(err) => {
+                            tracing::error!("Failed to fetch orca pool: {err:?}");
+                        }
+                    }
                 };
 
-                pools.sort_by(|a, b| a.get_price().total_cmp(&b.get_price()));
+                pools.sort_by(|a, b| a.sol_price().total_cmp(&b.sol_price()));
 
                 let amount_sol =
                     config.swap.amount_sol * (target.weight as f64 / total_weight as f64);

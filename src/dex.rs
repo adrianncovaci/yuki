@@ -21,23 +21,49 @@ pub trait Dex {
     fn swap(params: Self::SwapParams) -> Instruction;
 }
 
+#[derive(strum::Display)]
 pub enum DexPool {
     Orca { pool: Whirlpool, price: f64 },
     Raydium { pool: PoolState, price: f64 },
 }
 
 impl DexPool {
-    pub fn name(&self) -> &'static str {
-        match self {
-            DexPool::Orca { .. } => "Orca",
-            DexPool::Raydium { .. } => "Raydium",
-        }
+    pub fn name(&self) -> String {
+        self.to_string()
     }
 
     pub fn get_price(&self) -> f64 {
         match self {
             DexPool::Orca { price, .. } => *price,
             DexPool::Raydium { price, .. } => *price,
+        }
+    }
+
+    pub fn sol_price(&self) -> f64 {
+        match self {
+            DexPool::Orca { price, .. } => {
+                if self.is_sol_mint0() {
+                    1.0 / price
+                } else {
+                    *price
+                }
+            }
+            DexPool::Raydium { price, .. } => {
+                if self.is_sol_mint0() {
+                    1.0 / price
+                } else {
+                    *price
+                }
+            }
+        }
+    }
+
+    pub fn is_sol_mint0(&self) -> bool {
+        match self {
+            DexPool::Orca { pool, .. } => pool.token_mint_a == spl_token::native_mint::ID,
+            DexPool::Raydium { pool, .. } => {
+                pool.token_mint0.to_bytes() == spl_token::native_mint::id().to_bytes()
+            }
         }
     }
 }
