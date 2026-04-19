@@ -19,6 +19,8 @@ pub trait Dex {
     ) -> impl Future<Output = Result<Self::Pool, anyhow::Error>> + Send;
 
     fn swap(params: Self::SwapParams) -> Instruction;
+
+    fn name() -> &'static str;
 }
 
 #[derive(strum::Display)]

@@ -1,5 +1,6 @@
 pub mod config;
 pub mod dex;
+pub mod dto;
 pub mod orca;
 pub mod raydium;
 pub mod telegram;
@@ -31,6 +32,7 @@ use solana_rpc_client::{
 use crate::{
     config::{Config, Target},
     dex::{Dex, DexPool},
+    dto::{SwapError, SwapResult},
     orca::dex::OrcaDex,
     raydium::dex::RaydiumDex,
     wsol::WsolSwap,
@@ -109,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
 
         if (balance as f64) < needed {
             let msg = format!(
-                "⚠️ Insufficient balance: {:.4} SOL < {:.4} SOL needed",
+                "Insufficient balance: {:.4} SOL < {:.4} SOL needed",
                 balance as f64 / 1e9,
                 needed / 1e9
             );
@@ -127,16 +129,14 @@ async fn main() -> anyhow::Result<()> {
 
                 if let Some(pool) = target.raydium_pool {
                     match RaydiumDex::fetch_pool_bytes(&client, pool).await {
-                        Ok(pool) => {
-                            pools.push(DexPool::Raydium {
-                                price: RaydiumDex::sqrt_price_to_price(
-                                    pool.sqrt_price_x64,
-                                    pool.mint_decimals0,
-                                    pool.mint_decimals1,
-                                ),
-                                pool,
-                            })
-                        }
+                        Ok(pool) => pools.push(DexPool::Raydium {
+                            price: RaydiumDex::sqrt_price_to_price(
+                                pool.sqrt_price_x64,
+                                pool.mint_decimals0,
+                                pool.mint_decimals1,
+                            ),
+                            pool,
+                        }),
                         Err(err) => {
                             tracing::error!("Failed to fetch raydium pool: {err:?}");
                         }
@@ -165,9 +165,6 @@ async fn main() -> anyhow::Result<()> {
                 };
 
                 pools.sort_by(|a, b| a.sol_price().total_cmp(&b.sol_price()));
-
-                let amount_sol =
-                    config.swap.amount_sol * (target.weight as f64 / total_weight as f64);
 
                 for pool in pools {
                     let dex_name = pool.name();
@@ -206,36 +203,31 @@ async fn main() -> anyhow::Result<()> {
                     };
 
                     match result {
-                        Ok(()) => {
-                            results.push(format!(
-                                "✅ {} | {:.4} SOL -> {}",
-                                target.symbol, amount_sol, dex_name
-                            ));
+                        Ok(swap) => {
+                            results.push(swap.to_string());
                             break;
                         }
                         Err(err) => {
-                            tracing::warn!(
-                                "{} | {} failed: {err:#}, trying next...",
-                                target.symbol,
-                                dex_name
-                            );
-                            results.push(format!(
-                                "❌ {} | {} failed: {}",
-                                target.symbol, dex_name, err
-                            ));
+                            let swap_err = SwapError {
+                                symbol: target.symbol.clone(),
+                                dex: dex_name.to_string(),
+                                reason: format!("{err:#}"),
+                            };
+                            tracing::warn!("{swap_err}");
+                            results.push(swap_err.to_string());
                         }
                     }
                 }
+            }
 
-                if let Some(ref tg) = tg {
-                    let remaining = client.get_balance(&dca_wallet.pubkey()).await.unwrap_or(0);
-                    let summary = format!(
-                        "🔄 DCA Round Complete\nBalance: {:.4} SOL\n\n{}",
-                        remaining as f64 / 1e9,
-                        results.join("\n")
-                    );
-                    let _ = tg.send(&summary).await;
-                }
+            if let Some(ref tg) = tg {
+                let remaining = client.get_balance(&dca_wallet.pubkey()).await.unwrap_or(0);
+                let summary = format!(
+                    "DCA Round Complete\nBalance: {:.4} SOL\n\n{}",
+                    remaining as f64 / 1e9,
+                    results.join("\n")
+                );
+                let _ = tg.send(&summary).await;
             }
         }
 
@@ -268,7 +260,7 @@ pub async fn orca_dca_target(
     rent_exempt: u64,
     whirlpool: Whirlpool,
     cold_wallet: Option<Pubkey>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<SwapResult> {
     let pool_address = target
         .orca_pool
         .context(format!("{}: no orca pool configured", target.symbol))?;
@@ -349,7 +341,11 @@ pub async fn orca_dca_target(
 
     transfer_to_cold_wallet(client, wallet, target, ata, cold_wallet).await?;
 
-    Ok(())
+    Ok(SwapResult {
+        symbol: target.symbol.clone(),
+        amount,
+        dex: OrcaDex::name().to_string(),
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -362,7 +358,7 @@ pub async fn raydium_dca_target(
     rent_exempt: u64,
     pool: PoolState,
     cold_wallet: Option<Pubkey>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<SwapResult> {
     let pool_address = target
         .raydium_pool
         .context(format!("{}: no raydium pool configured", target.symbol))?;
@@ -458,7 +454,11 @@ pub async fn raydium_dca_target(
 
     transfer_to_cold_wallet(client, wallet, target, ata, cold_wallet).await?;
 
-    Ok(())
+    Ok(SwapResult {
+        symbol: target.symbol.clone(),
+        amount,
+        dex: RaydiumDex::name().to_string(),
+    })
 }
 
 pub async fn transfer_to_cold_wallet(

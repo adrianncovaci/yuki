@@ -127,4 +127,8 @@ impl Dex for RaydiumDex {
             data,
         }
     }
+
+    fn name() -> &'static str {
+        "Raydium"
+    }
 }

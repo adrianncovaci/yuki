@@ -102,4 +102,8 @@ impl Dex for OrcaDex {
             .sqrt_price_limit(sqrt_price)
             .instruction()
     }
+
+    fn name() -> &'static str {
+        "Orca"
+    }
 }
