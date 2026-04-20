@@ -50,7 +50,7 @@ struct CliArgs {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::TRACE)
+        .with_max_level(tracing::Level::DEBUG)
         .init();
 
     let cli_args = CliArgs::parse();
@@ -116,15 +116,15 @@ async fn main() -> anyhow::Result<()> {
                 needed / 1e9
             );
             tracing::warn!("{msg}");
-            if let Some(ref tg) = tg {
-                let _ = tg.send(&msg).await;
+            if let Some(ref tg) = tg
+                && let Err(e) = tg.send(&msg).await
+            {
+                tracing::error!("Telegram send failed: {e:#}");
             }
         } else {
             let mut results: Vec<String> = vec![];
 
             for target in &config.targets {
-                tracing::info!("{:?}", target.symbol);
-
                 let mut pools = vec![];
 
                 if let Some(pool) = target.raydium_pool {
@@ -138,7 +138,10 @@ async fn main() -> anyhow::Result<()> {
                             pool,
                         }),
                         Err(err) => {
-                            tracing::error!("Failed to fetch raydium pool: {err:?}");
+                            tracing::error!(
+                                "{} | failed to fetch Raydium pool: {err}",
+                                target.symbol
+                            );
                         }
                     }
                 };
@@ -159,12 +162,38 @@ async fn main() -> anyhow::Result<()> {
                             })
                         }
                         Err(err) => {
-                            tracing::error!("Failed to fetch orca pool: {err:?}");
+                            tracing::error!("{} | failed to fetch Orca pool: {err}", target.symbol);
                         }
                     }
                 };
 
                 pools.sort_by(|a, b| a.sol_price().total_cmp(&b.sol_price()));
+
+                if pools.len() > 1 {
+                    let best = &pools[0];
+                    let second = &pools[1];
+                    let diff_bps = ((best.sol_price() - second.sol_price()) / best.sol_price()
+                        * 10_000.0)
+                        .abs() as u32;
+                    tracing::info!(
+                        "{} | best={} ({:.6}) vs {}={:.6} | diff={}bps",
+                        target.symbol,
+                        best.name(),
+                        best.sol_price(),
+                        second.name(),
+                        second.sol_price(),
+                        diff_bps
+                    );
+                } else if pools.len() == 1 {
+                    tracing::info!(
+                        "{} | only {} ({:.6})",
+                        target.symbol,
+                        pools[0].name(),
+                        pools[0].sol_price()
+                    );
+                } else {
+                    tracing::warn!("{} | no pools available", target.symbol);
+                }
 
                 for pool in pools {
                     let dex_name = pool.name();
@@ -227,7 +256,9 @@ async fn main() -> anyhow::Result<()> {
                     remaining as f64 / 1e9,
                     results.join("\n")
                 );
-                let _ = tg.send(&summary).await;
+                if let Err(e) = tg.send(&summary).await {
+                    tracing::error!("Telegram send failed: {e:#}");
+                }
             }
         }
 
@@ -267,18 +298,11 @@ pub async fn orca_dca_target(
 
     let (oracle, _) = get_oracle_address(&pool_address)?;
 
-    let price = OrcaDex::sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
-
     let amount = (config.swap.amount_sol
         * LAMPORTS_PER_SOL as f64
         * (target.weight as f64 / total_weight as f64)) as u64;
 
-    tracing::info!(
-        "{} | price: {:.6} | amount: {:.4} SOL",
-        target.symbol,
-        price,
-        amount as f64 / 1e9
-    );
+    let price = OrcaDex::sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
 
     let recent_blockhash = client
         .get_latest_blockhash()
@@ -334,7 +358,7 @@ pub async fn orca_dca_target(
     let signature = client.send_and_confirm_transaction(&tx).await?;
 
     tracing::info!(
-        "{} | swapped {:.4} SOL | tx: {signature}",
+        "{} | Orca | {:.4} SOL | tx: {signature}",
         target.symbol,
         amount as f64 / 1e9
     );
@@ -365,18 +389,11 @@ pub async fn raydium_dca_target(
 
     let sol_is_mint0 = pool.token_mint0.to_bytes() == spl_token::native_mint::id().to_bytes();
 
-    let price = RaydiumDex::sqrt_price_to_price(pool.sqrt_price_x64, target.decimals as u8, 9);
-
     let amount = (config.swap.amount_sol
         * LAMPORTS_PER_SOL as f64
         * (target.weight as f64 / total_weight as f64)) as u64;
 
-    tracing::info!(
-        "{} | price: {:.6} | amount: {:.4} SOL",
-        target.symbol,
-        price,
-        amount as f64 / 1e9
-    );
+    let price = RaydiumDex::sqrt_price_to_price(pool.sqrt_price_x64, target.decimals as u8, 9);
 
     let recent_blockhash = client
         .get_latest_blockhash()
@@ -447,7 +464,7 @@ pub async fn raydium_dca_target(
     let signature = client.send_and_confirm_transaction(&tx).await?;
 
     tracing::info!(
-        "{} | swapped {:.4} SOL | tx: {signature}",
+        "{} | Raydium | {:.4} SOL | tx: {signature}",
         target.symbol,
         amount as f64 / 1e9
     );

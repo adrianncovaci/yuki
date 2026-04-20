@@ -10,8 +10,10 @@ impl fmt::Display for SwapResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "[OK] {} | {} SOL -> {}",
-            self.symbol, self.amount, self.dex
+            "[OK] {} | {:.4} SOL -> {}",
+            self.symbol,
+            self.amount as f64 / 1e9,
+            self.dex
         )
     }
 }

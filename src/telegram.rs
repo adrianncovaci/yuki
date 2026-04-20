@@ -18,7 +18,8 @@ impl Telegram {
     pub async fn send(&self, text: &str) -> anyhow::Result<()> {
         let url = format!("https://api.telegram.org/bot{}/sendMessage", self.token);
 
-        self.client
+        let resp = self
+            .client
             .post(&url)
             .json(&serde_json::json!({
                 "chat_id": self.chat_id,
@@ -26,6 +27,15 @@ impl Telegram {
             }))
             .send()
             .await?;
+
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+
+        if !status.is_success() {
+            tracing::error!("Telegram API error: {status} - {body}");
+        } else {
+            tracing::debug!("Telegram message sent");
+        }
 
         Ok(())
     }
