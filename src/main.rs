@@ -135,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
                                 pool.mint_decimals0,
                                 pool.mint_decimals1,
                             ),
-                            pool,
+                            pool: Box::new(pool),
                         }),
                         Err(err) => {
                             tracing::error!(
@@ -158,7 +158,7 @@ async fn main() -> anyhow::Result<()> {
 
                             pools.push(DexPool::Orca {
                                 price: OrcaDex::sqrt_price_to_price(pool.sqrt_price, dec_0, dec_1),
-                                pool,
+                                pool: Box::new(pool),
                             })
                         }
                         Err(err) => {
@@ -289,7 +289,7 @@ pub async fn orca_dca_target(
     target: &Target,
     total_weight: u32,
     rent_exempt: u64,
-    whirlpool: Whirlpool,
+    whirlpool: Box<Whirlpool>,
     cold_wallet: Option<Pubkey>,
 ) -> anyhow::Result<SwapResult> {
     let pool_address = target
@@ -320,7 +320,7 @@ pub async fn orca_dca_target(
     )?;
 
     let swap_params = orca::dex::SwapParams {
-        whirlpool,
+        whirlpool: *whirlpool,
         pool_address,
         amount,
         slippage_bps: config.swap.slippage_bps,
@@ -380,7 +380,7 @@ pub async fn raydium_dca_target(
     target: &Target,
     total_weight: u32,
     rent_exempt: u64,
-    pool: PoolState,
+    pool: Box<PoolState>,
     cold_wallet: Option<Pubkey>,
 ) -> anyhow::Result<SwapResult> {
     let pool_address = target
@@ -426,7 +426,7 @@ pub async fn raydium_dca_target(
         signer: wallet.pubkey(),
         pool_address,
         observation_state: Pubkey::new_from_array(pool.observation_key.to_bytes()),
-        pool_state: pool,
+        pool_state: *pool,
         input_token_account: wsol_swap.keypair.pubkey(),
         output_token_account: ata,
         input_vault,
