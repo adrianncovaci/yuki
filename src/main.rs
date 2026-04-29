@@ -237,12 +237,18 @@ async fn main() -> anyhow::Result<()> {
                             break;
                         }
                         Err(err) => {
-                            let swap_err = SwapError {
+                            let mut swap_err = SwapError {
                                 symbol: target.symbol.clone(),
                                 dex: dex_name.to_string(),
                                 reason: format!("{err:#}"),
                             };
                             tracing::warn!("{swap_err}");
+                            if swap_err.reason.len() > 200 {
+                                swap_err.reason = format!(
+                                    "{}...",
+                                    swap_err.reason.chars().take(200).collect::<String>()
+                                );
+                            }
                             results.push(swap_err.to_string());
                         }
                     }
