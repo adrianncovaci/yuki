@@ -4,16 +4,18 @@ pub struct SwapResult {
     pub symbol: String,
     pub amount: u64,
     pub dex: String,
+    pub estimated_output: f64,
 }
 
 impl fmt::Display for SwapResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "[OK] {} | {:.4} SOL -> {}",
+            "[OK] {} | {:.4} SOL -> {} | est. {:.4}",
             self.symbol,
             self.amount as f64 / 1e9,
-            self.dex
+            self.dex,
+            self.estimated_output
         )
     }
 }

@@ -43,6 +43,18 @@ pub async fn orca_dca_target(
         * LAMPORTS_PER_SOL as f64
         * (target.weight as f64 / total_weight as f64)) as u64;
 
+    let sol_is_mint0 = whirlpool.token_mint_a == spl_token::native_mint::ID;
+    let sqrt_price = whirlpool.sqrt_price as f64 / (1u128 << 64) as f64;
+    let l = whirlpool.liquidity as f64;
+
+    let estimated_output = if sol_is_mint0 {
+        let p2 = (l * sqrt_price) / (l + amount as f64 * sqrt_price);
+        l * (sqrt_price - p2)
+    } else {
+        let p2 = sqrt_price + (amount as f64 / l);
+        l * (1f64 / sqrt_price - 1f64 / p2)
+    };
+
     let price = OrcaDex::sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
 
     let recent_blockhash = client
@@ -110,5 +122,6 @@ pub async fn orca_dca_target(
         symbol: target.symbol.clone(),
         amount,
         dex: OrcaDex::name().to_string(),
+        estimated_output,
     })
 }

@@ -40,18 +40,32 @@ pub async fn raydium_dca_target(
         * LAMPORTS_PER_SOL as f64
         * (target.weight as f64 / total_weight as f64)) as u64;
 
-    let x_v = pool.liquidity as f64 / pool.sqrt_price_x64 as f64;
-    let y_v = pool.liquidity as f64 * pool.sqrt_price_x64 as f64;
+    let sqrt_price = pool.sqrt_price_x64 as f64 / (1u128 << 64) as f64;
+    let l = pool.liquidity as f64;
+
+    let x_v = pool.liquidity as f64 / sqrt_price;
+    let y_v = pool.liquidity as f64 * sqrt_price;
     let k = x_v * y_v;
+
+    let outcome = if sol_is_mint0 {
+        let p2 = (l * sqrt_price) / (l + amount as f64 * sqrt_price);
+
+        l * (sqrt_price - p2)
+    } else {
+        let p2 = sqrt_price + (amount as f64 / l);
+
+        l * (1f64 / sqrt_price - 1f64 / p2)
+    };
 
     let price = RaydiumDex::sqrt_price_to_price(pool.sqrt_price_x64, target.decimals as u8, 9);
 
     tracing::info!(
-        "{:?} price: {price:?}; liquidity: {:?}; Xv = {:?}; Yv = {:?}; k = {k:?}",
+        "{:?} price: {price:?}; liquidity: {:?}; Xv = {:?}; Yv = {:?}; k = {k:?}; approximate outcome = {:?}",
         target.symbol,
         pool.liquidity,
         x_v,
-        y_v
+        y_v,
+        outcome
     );
 
     let recent_blockhash = client
@@ -134,5 +148,6 @@ pub async fn raydium_dca_target(
         symbol: target.symbol.clone(),
         amount,
         dex: RaydiumDex::name().to_string(),
+        estimated_output: outcome,
     })
 }
