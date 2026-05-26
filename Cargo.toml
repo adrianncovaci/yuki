@@ -7,7 +7,7 @@ edition = "2024"
 anyhow = "1"
 borsh = "1"
 clap = { version = "4", features = ["derive"] }
-orca_whirlpools_client = "7"
+orca_whirlpools_client = "8"
 orca_whirlpools_core = "2"
 raydium_clmm = "0.1"
 serde = { version = "1", features = ["derive"] }

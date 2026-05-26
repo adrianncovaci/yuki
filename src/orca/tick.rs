@@ -24,11 +24,11 @@ impl TickArray {
 
             let tick_arr2_idx = tick_arr1_idx - ticks_in_array;
 
-            let tick_arr0 = get_tick_array_address(&whirlpool, tick_arr0_idx)
+            let tick_arr0 = get_tick_array_address(&whirlpool, tick_arr0_idx, None)
                 .context("Failed to get tick array address")?;
-            let tick_arr1 = get_tick_array_address(&whirlpool, tick_arr1_idx)
+            let tick_arr1 = get_tick_array_address(&whirlpool, tick_arr1_idx, None)
                 .context("Failed to get tick array address")?;
-            let tick_arr2 = get_tick_array_address(&whirlpool, tick_arr2_idx)
+            let tick_arr2 = get_tick_array_address(&whirlpool, tick_arr2_idx, None)
                 .context("Failed to get tick array address")?;
 
             [tick_arr0.0, tick_arr1.0, tick_arr2.0]
@@ -37,11 +37,11 @@ impl TickArray {
 
             let tick_arr2_idx = tick_arr1_idx + ticks_in_array;
 
-            let tick_arr0 = get_tick_array_address(&whirlpool, tick_arr0_idx)
+            let tick_arr0 = get_tick_array_address(&whirlpool, tick_arr0_idx, None)
                 .context("Failed to get tick array address")?;
-            let tick_arr1 = get_tick_array_address(&whirlpool, tick_arr1_idx)
+            let tick_arr1 = get_tick_array_address(&whirlpool, tick_arr1_idx, None)
                 .context("Failed to get tick array address")?;
-            let tick_arr2 = get_tick_array_address(&whirlpool, tick_arr2_idx)
+            let tick_arr2 = get_tick_array_address(&whirlpool, tick_arr2_idx, None)
                 .context("Failed to get tick array address")?;
 
             [tick_arr0.0, tick_arr1.0, tick_arr2.0]

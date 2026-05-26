@@ -37,7 +37,7 @@ pub async fn orca_dca_target(
         .orca_pool
         .context(format!("{}: no orca pool configured", target.symbol))?;
 
-    let (oracle, _) = get_oracle_address(&pool_address)?;
+    let (oracle, _) = get_oracle_address(&pool_address, None)?;
 
     let amount = (config.swap.amount_sol
         * LAMPORTS_PER_SOL as f64
