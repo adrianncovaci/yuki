@@ -47,6 +47,25 @@ pub async fn orca_dca_target(
     let sqrt_price = whirlpool.sqrt_price as f64 / (1u128 << 64) as f64;
     let l = whirlpool.liquidity as f64;
 
+    let tick_array = TickArray::new(
+        pool_address,
+        whirlpool.tick_current_index,
+        whirlpool.tick_spacing,
+        whirlpool.token_mint_a == spl_token::native_mint::ID,
+    )?;
+
+    let estimated_output = orca_whirlpools_core::swap_quote_by_input_token(
+        amount,
+        sol_is_mint0,
+        config.swap.slippage_bps as u16,
+        (*whirlpool).into(),
+        oracle.into(),
+        tick_array.fetch_and_deserialize(client).await?,
+        timestamp,
+        transfer_fee_a,
+        transfer_fee_b,
+    );
+
     let estimated_output = if sol_is_mint0 {
         let p2 = (l * sqrt_price) / (l + amount as f64 * sqrt_price);
         l * (sqrt_price - p2)
@@ -64,13 +83,6 @@ pub async fn orca_dca_target(
 
     let ata = get_associated_token_address(&wallet.pubkey(), &target.mint_address);
     let wsol_swap = WsolSwap::new(&wallet.pubkey(), amount, rent_exempt)?;
-
-    let tick_array = TickArray::new(
-        pool_address,
-        whirlpool.tick_current_index,
-        whirlpool.tick_spacing,
-        whirlpool.token_mint_a == spl_token::native_mint::ID,
-    )?;
 
     let swap_params = SwapParams {
         whirlpool: *whirlpool,
