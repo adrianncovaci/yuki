@@ -1,6 +1,8 @@
 use anyhow::Context;
 use orca_whirlpools_client::get_tick_array_address;
-use orca_whirlpools_core::{TICK_ARRAY_SIZE, get_tick_array_start_tick_index};
+use orca_whirlpools_core::{
+    TICK_ARRAY_SIZE, TickArrayFacade, TickArrays, get_tick_array_start_tick_index,
+};
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 
@@ -54,7 +56,7 @@ impl TickArray {
     pub async fn fetch_and_deserialize(
         &self,
         rpc_client: &RpcClient,
-    ) -> anyhow::Result<[orca_whirlpools_client::TickArray; 3]> {
+    ) -> anyhow::Result<TickArrays> {
         let result = rpc_client
             .get_multiple_accounts(&self.inner)
             .await
@@ -67,9 +69,14 @@ impl TickArray {
             })
             .collect::<anyhow::Result<Vec<orca_whirlpools_client::TickArray>>>()?;
 
-        result
+        let result: [TickArrayFacade; 3] = result
+            .into_iter()
+            .map(|el| el.into())
+            .collect::<Vec<TickArrayFacade>>()
             .try_into()
-            .map_err(|v: Vec<_>| anyhow::anyhow!("Expected 3 tick arrays, got {}", v.len()))
+            .map_err(|v: Vec<_>| anyhow::anyhow!("Expected 3 tick arrays, got {}", v.len()))?;
+
+        Ok(result.into())
     }
 
     fn from_bytes(data: &[u8]) -> anyhow::Result<orca_whirlpools_client::TickArray> {

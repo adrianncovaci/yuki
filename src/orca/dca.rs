@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use anyhow::Context;
 use orca_whirlpools_client::{Whirlpool, get_oracle_address};
 use solana_rpc_client::{
@@ -44,8 +46,6 @@ pub async fn orca_dca_target(
         * (target.weight as f64 / total_weight as f64)) as u64;
 
     let sol_is_mint0 = whirlpool.token_mint_a == spl_token::native_mint::ID;
-    let sqrt_price = whirlpool.sqrt_price as f64 / (1u128 << 64) as f64;
-    let l = whirlpool.liquidity as f64;
 
     let tick_array = TickArray::new(
         pool_address,
@@ -54,25 +54,18 @@ pub async fn orca_dca_target(
         whirlpool.token_mint_a == spl_token::native_mint::ID,
     )?;
 
-    let estimated_output = orca_whirlpools_core::swap_quote_by_input_token(
+    let quote = orca_whirlpools_core::swap_quote_by_input_token(
         amount,
         sol_is_mint0,
         config.swap.slippage_bps as u16,
-        (*whirlpool).into(),
-        oracle.into(),
+        (*whirlpool.clone()).into(),
+        None,
         tick_array.fetch_and_deserialize(client).await?,
-        timestamp,
-        transfer_fee_a,
-        transfer_fee_b,
-    );
-
-    let estimated_output = if sol_is_mint0 {
-        let p2 = (l * sqrt_price) / (l + amount as f64 * sqrt_price);
-        l * (sqrt_price - p2)
-    } else {
-        let p2 = sqrt_price + (amount as f64 / l);
-        l * (1f64 / sqrt_price - 1f64 / p2)
-    };
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+        None,
+        None,
+    )
+    .map_err(|err| anyhow::anyhow!("Failed to fetch swap quote: {err:?}"))?;
 
     let price = OrcaDex::sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
 
@@ -134,6 +127,6 @@ pub async fn orca_dca_target(
         symbol: target.symbol.clone(),
         amount,
         dex: OrcaDex::name().to_string(),
-        estimated_output,
+        estimated_output: quote.token_est_out as f64 / 10f64.powi(target.decimals as i32),
     })
 }

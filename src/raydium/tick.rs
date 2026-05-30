@@ -1,3 +1,9 @@
+use anyhow::Context;
+use raydium_clmm::{
+    accounts::{PoolState, TickArrayState},
+    types::TickState,
+};
+use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 
 use crate::raydium::RAYDIUM_CLMM_PROGRAM;
@@ -57,5 +63,51 @@ impl TickArray {
             .div_euclid(tick_spacing)
             .div_euclid(TICK_ARRAY_SIZE as i32);
         real_index * tick_spacing * TICK_ARRAY_SIZE as i32
+    }
+
+    pub async fn fetch_and_deserialize(
+        &self,
+        rpc_client: &RpcClient,
+        pool: &PoolState,
+    ) -> anyhow::Result<Vec<TickState>> {
+        let a_to_b = pool.token_mint0.to_bytes() == spl_token::native_mint::ID.to_bytes();
+
+        let mut res = rpc_client
+            .get_multiple_accounts(&self.inner)
+            .await
+            .context("Failed to get tick arrays")?
+            .into_iter()
+            .enumerate()
+            .try_fold(Vec::new(), |mut acc, (idx, el)| {
+                let acct = el.ok_or(anyhow::anyhow!("Failed to get element: {idx:?}"))?;
+
+                let ticks = TickArrayState::from_bytes(&acct.data)
+                    .with_context(|| format!("Failed to deserialize tick array state: {idx}"))?
+                    .ticks
+                    .into_iter()
+                    .filter(|el| el.liquidity_gross != 0)
+                    .filter(|t| {
+                        if a_to_b {
+                            t.tick <= pool.tick_current
+                        } else {
+                            t.tick > pool.tick_current
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                acc.extend(ticks);
+                Ok(acc)
+            });
+
+        let _ = res.as_mut().map(|ticks| {
+            ticks.sort_by(|a, b| {
+                if a_to_b {
+                    b.tick.cmp(&a.tick)
+                } else {
+                    a.tick.cmp(&b.tick)
+                }
+            })
+        });
+
+        res
     }
 }
