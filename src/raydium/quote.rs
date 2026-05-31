@@ -1,26 +1,53 @@
-use anyhow::Context;
-use raydium_clmm::{
-    accounts::{AmmConfig, PoolState},
-    types::TickState,
-};
-use solana_rpc_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::pubkey::Pubkey;
+use raydium_clmm::{accounts::PoolState, types::TickState};
 
-pub async fn estimate_output(
-    amount: u64,
-    ticks: &[TickState],
-    pool: &PoolState,
-    client: &RpcClient,
-) -> anyhow::Result<f64> {
-    let amm_config = client
-        .get_account_data(&Pubkey::new_from_array(pool.amm_config.to_bytes()))
-        .await
-        .context("Failed to fetch amm config ")?;
+pub fn estimate_output(net_in: f64, ticks: &[TickState], pool: &PoolState) -> f64 {
+    let mut full_swap = false;
 
-    let amm_config = AmmConfig::from_bytes(&amm_config).context("Failed to create amm config")?;
+    let a_to_b = pool.token_mint0.to_bytes() == spl_token::native_mint::ID.to_bytes();
 
-    let sqrt_price = pool.sqrt_price_x64 as f64 / (1u128 << 64) as f64;
-    let net_in = amount as f64 * (1.0 - amm_config.trade_fee_rate as f64 / 1_000_000.0);
+    let mut cur = pool.sqrt_price_x64 as f64 / (1u128 << 64) as f64;
+    let mut liquidity = pool.liquidity;
 
-    Ok(0.0)
+    let mut out = 0.0;
+    let mut rem = net_in;
+
+    for tick in ticks {
+        let tick_sqrt = 1.0001f64.powf(tick.tick as f64 / 2.0);
+
+        if a_to_b {
+            let needed = liquidity as f64 * (1.0 / tick_sqrt - 1.0 / cur);
+
+            if rem >= needed {
+                out += liquidity as f64 * (cur - tick_sqrt);
+                rem -= needed;
+                cur = tick_sqrt;
+                liquidity = (liquidity as i128 - tick.liquidity_net) as u128;
+            } else {
+                let next = 1.0 / (1.0 / cur + rem / liquidity as f64);
+                out += liquidity as f64 * (cur - next);
+                full_swap = true;
+                break;
+            }
+        } else {
+            let needed = liquidity as f64 * (tick_sqrt - cur);
+
+            if rem >= needed {
+                out += liquidity as f64 * (1.0 / cur - 1.0 / tick_sqrt);
+                rem -= needed;
+                cur = tick_sqrt;
+                liquidity = (liquidity as i128 + tick.liquidity_net) as u128;
+            } else {
+                let next = cur + rem / liquidity as f64;
+                out += liquidity as f64 * (1.0 / cur - 1.0 / next);
+                full_swap = true;
+                break;
+            }
+        };
+    }
+
+    if !full_swap {
+        tracing::warn!("Failed to get the quote for the full swap, remaining at least: {rem:?}");
+    }
+
+    out
 }
