@@ -51,3 +51,133 @@ pub fn estimate_output(net_in: f64, ticks: &[TickState], pool: &PoolState) -> f6
 
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use raydium_clmm::{
+        accounts::PoolState,
+        types::{RewardInfo, TickState},
+    };
+
+    use crate::test::PoolSpec;
+
+    fn mk_pool(spec: &PoolSpec) -> PoolState {
+        let wsol = solana_pubkey::Pubkey::new_from_array(spl_token::native_mint::ID.to_bytes());
+
+        let (token_mint0, token_mint1) = if spec.sol_is_mint0 {
+            (wsol, solana_pubkey::Pubkey::default())
+        } else {
+            (solana_pubkey::Pubkey::default(), wsol)
+        };
+
+        // only these matter: sqrt_price_x64, liquidity, tick_current, tick_spacing, token_mint0
+        // everything else: zeros / Pubkey::default()
+        PoolState {
+            sqrt_price_x64: spec.sqrt_price_x64,
+            liquidity: spec.liquidity,
+            tick_current: spec.tick_current,
+            tick_spacing: spec.tick_spacing,
+            token_mint0,
+            token_mint1,
+            discriminator: Default::default(),
+            bump: Default::default(),
+            amm_config: Default::default(),
+            owner: Default::default(),
+            token_vault0: Default::default(),
+            token_vault1: Default::default(),
+            observation_key: Default::default(),
+            mint_decimals0: Default::default(),
+            mint_decimals1: Default::default(),
+            padding3: Default::default(),
+            padding4: Default::default(),
+            fee_growth_global0_x64: Default::default(),
+            fee_growth_global1_x64: Default::default(),
+            protocol_fees_token0: Default::default(),
+            protocol_fees_token1: Default::default(),
+            swap_in_amount_token0: Default::default(),
+            swap_out_amount_token1: Default::default(),
+            swap_in_amount_token1: Default::default(),
+            swap_out_amount_token0: Default::default(),
+            status: Default::default(),
+            padding: Default::default(),
+            reward_infos: [
+                RewardInfo {
+                    reward_state: Default::default(),
+                    open_time: Default::default(),
+                    end_time: Default::default(),
+                    last_update_time: Default::default(),
+                    emissions_per_second_x64: Default::default(),
+                    reward_total_emissioned: Default::default(),
+                    reward_claimed: Default::default(),
+                    token_mint: Default::default(),
+                    token_vault: Default::default(),
+                    authority: Default::default(),
+                    reward_growth_global_x64: Default::default(),
+                },
+                RewardInfo {
+                    reward_state: Default::default(),
+                    open_time: Default::default(),
+                    end_time: Default::default(),
+                    last_update_time: Default::default(),
+                    emissions_per_second_x64: Default::default(),
+                    reward_total_emissioned: Default::default(),
+                    reward_claimed: Default::default(),
+                    token_mint: Default::default(),
+                    token_vault: Default::default(),
+                    authority: Default::default(),
+                    reward_growth_global_x64: Default::default(),
+                },
+                RewardInfo {
+                    reward_state: Default::default(),
+                    open_time: Default::default(),
+                    end_time: Default::default(),
+                    last_update_time: Default::default(),
+                    emissions_per_second_x64: Default::default(),
+                    reward_total_emissioned: Default::default(),
+                    reward_claimed: Default::default(),
+                    token_mint: Default::default(),
+                    token_vault: Default::default(),
+                    authority: Default::default(),
+                    reward_growth_global_x64: Default::default(),
+                },
+            ],
+            tick_array_bitmap: Default::default(),
+            total_fees_token0: Default::default(),
+            total_fees_claimed_token0: Default::default(),
+            total_fees_token1: Default::default(),
+            total_fees_claimed_token1: Default::default(),
+            fund_fees_token0: Default::default(),
+            fund_fees_token1: Default::default(),
+            open_time: Default::default(),
+            recent_epoch: Default::default(),
+            padding1: Default::default(),
+            padding2: Default::default(),
+        }
+    }
+
+    fn mk_ticks_rs(spec: &PoolSpec) -> Vec<TickState> {
+        let mut res = vec![];
+
+        for tick in &spec.ticks {
+            if spec.sol_is_mint0 && tick.0 <= spec.tick_current
+                || !spec.sol_is_mint0 && tick.0 > spec.tick_current
+            {
+                res.push(TickState {
+                    tick: tick.0,
+                    liquidity_net: tick.1,
+                    liquidity_gross: tick.2,
+                    fee_growth_outside0_x64: Default::default(),
+                    fee_growth_outside1_x64: Default::default(),
+                    reward_growths_outside_x64: Default::default(),
+                    padding: Default::default(),
+                });
+            }
+        }
+        if spec.sol_is_mint0 {
+            res.sort_by_key(|b| std::cmp::Reverse(b.tick));
+        } else {
+            res.sort_by_key(|b| b.tick);
+        }
+        res
+    }
+}

@@ -82,6 +82,11 @@ pub async fn raydium_dca_target(
         )
     };
 
+    let diag = format!(
+        "tick_current={}, tick_spacing={}, liquidity={}, sol_is_mint0={}, tick_arrays={:?}",
+        pool.tick_current, pool.tick_spacing, pool.liquidity, sol_is_mint0, tick_array.inner,
+    );
+
     let swap_params = SwapParams {
         signer: wallet.pubkey(),
         pool_address,
@@ -121,7 +126,10 @@ pub async fn raydium_dca_target(
         recent_blockhash,
     );
 
-    let signature = client.send_and_confirm_transaction(&tx).await?;
+    let signature = client
+        .send_and_confirm_transaction(&tx)
+        .await
+        .with_context(|| format!("raydium swap failed [{diag}]"))?;
 
     tracing::info!(
         "{} | Raydium | {:.4} SOL | tx: {signature}",
@@ -136,5 +144,6 @@ pub async fn raydium_dca_target(
         amount,
         dex: RaydiumDex::name().to_string(),
         estimated_output,
+        signature: signature.to_string(),
     })
 }

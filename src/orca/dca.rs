@@ -128,5 +128,6 @@ pub async fn orca_dca_target(
         amount,
         dex: OrcaDex::name().to_string(),
         estimated_output: quote.token_est_out as f64 / 10f64.powi(target.decimals as i32),
+        signature: signature.to_string(),
     })
 }
