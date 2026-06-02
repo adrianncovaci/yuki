@@ -1,10 +1,10 @@
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use orca_whirlpools_core::{TickArrayFacade, TickFacade, WhirlpoolFacade};
 
     use crate::test::PoolSpec;
 
-    fn mk_pool(spec: &PoolSpec) -> WhirlpoolFacade {
+    pub(crate) fn mk_pool(spec: &PoolSpec) -> WhirlpoolFacade {
         WhirlpoolFacade {
             sqrt_price: spec.sqrt_price_x64,
             liquidity: spec.liquidity,
@@ -16,7 +16,7 @@ mod tests {
         }
     }
 
-    fn mk_ticks(spec: &PoolSpec) -> [TickArrayFacade; 3] {
+    pub(crate) fn mk_ticks(spec: &PoolSpec) -> [TickArrayFacade; 3] {
         let spacing = spec.tick_spacing as i32;
         let ticks_per_arr = spacing * 88;
         let containing = spec.tick_current.div_euclid(spacing).div_euclid(88) * ticks_per_arr;
