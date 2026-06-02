@@ -247,7 +247,7 @@ async fn main() -> anyhow::Result<()> {
             if let Some(ref tg) = tg {
                 let remaining = client.get_balance(&dca_wallet.pubkey()).await.unwrap_or(0);
                 let summary = format!(
-                    "DCA Round Complete\n{:?}\nBalance: {:.4} SOL\n",
+                    "DCA Round Complete\nBalance: {:.4} SOL\n{}\n",
                     remaining as f64 / 1e9,
                     results.join("\n"),
                 );

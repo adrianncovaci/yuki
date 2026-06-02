@@ -12,12 +12,12 @@ impl fmt::Display for SwapResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "[OK] {} | {:.4} SOL -> {} | est. {:.4}\n{}",
+            "[OK] {} | {:.4} SOL -> {} | est. {:.4}\n<a href=\"https://solscan.io/tx/{}\">Signature</a>",
             self.symbol,
             self.amount as f64 / 1e9,
             self.dex,
             self.estimated_output,
-            self.signature
+            self.signature,
         )
     }
 }
