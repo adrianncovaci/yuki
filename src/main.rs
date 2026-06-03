@@ -232,10 +232,10 @@ async fn main() -> anyhow::Result<()> {
                                 reason: format!("{err:#}"),
                             };
                             tracing::warn!("{swap_err}");
-                            if swap_err.reason.len() > 200 {
+                            if swap_err.reason.len() > 500 {
                                 swap_err.reason = format!(
                                     "{}...",
-                                    swap_err.reason.chars().take(200).collect::<String>()
+                                    swap_err.reason.chars().take(500).collect::<String>()
                                 );
                             }
                             results.push(swap_err.to_string());
