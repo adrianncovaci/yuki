@@ -4,7 +4,8 @@ use solana_rpc_client::{
     api::response::transaction::Transaction, nonblocking::rpc_client::RpcClient,
 };
 use solana_sdk::{
-    native_token::LAMPORTS_PER_SOL, pubkey::Pubkey, signature::Keypair, signer::Signer,
+    instruction::InstructionError, native_token::LAMPORTS_PER_SOL, pubkey::Pubkey,
+    signature::Keypair, signer::Signer, transaction::TransactionError,
 };
 use spl_associated_token_account_interface::{
     address::get_associated_token_address, instruction::create_associated_token_account_idempotent,
@@ -126,10 +127,25 @@ pub async fn raydium_dca_target(
         recent_blockhash,
     );
 
-    let signature = client
-        .send_and_confirm_transaction(&tx)
-        .await
-        .with_context(|| format!("raydium swap failed [{diag}]"))?;
+    let signature = match client.send_and_confirm_transaction(&tx).await {
+        Ok(signature) => signature,
+        Err(err) => {
+            let decoded = err.get_transaction_error().and_then(|te| match te {
+                TransactionError::InstructionError(_, InstructionError::Custom(code)) => {
+                    Some((code, crate::raydium::errors::decode(code)))
+                }
+                _ => None,
+            });
+            let prefix = match decoded {
+                Some((code, Some(msg))) => format!("raydium program error {code}: {msg} — "),
+                Some((code, None)) => format!("raydium program error {code} (unknown) — "),
+                None => String::new(),
+            };
+            return Err(
+                anyhow::Error::new(err).context(format!("{prefix}raydium swap failed [{diag}]"))
+            );
+        }
+    };
 
     tracing::info!(
         "{} | Raydium | {:.4} SOL | tx: {signature}",
