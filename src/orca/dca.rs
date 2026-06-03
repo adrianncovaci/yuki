@@ -67,8 +67,6 @@ pub async fn orca_dca_target(
     )
     .map_err(|err| anyhow::anyhow!("Failed to fetch swap quote: {err:?}"))?;
 
-    let price = OrcaDex::sqrt_price_to_price(whirlpool.sqrt_price, target.decimals as u8, 9);
-
     let recent_blockhash = client
         .get_latest_blockhash()
         .await
@@ -81,9 +79,7 @@ pub async fn orca_dca_target(
         whirlpool: *whirlpool,
         pool_address,
         amount,
-        slippage_bps: config.swap.slippage_bps,
-        b_token_decimals: target.decimals,
-        b_token_price: price,
+        other_amount_threshold: quote.token_min_out,
         authority: wallet.pubkey(),
         wsol_ata: wsol_swap.keypair.pubkey(),
         dca_token_ata: ata,

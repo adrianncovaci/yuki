@@ -32,7 +32,6 @@ pub struct SwapParams {
     pub output_vault_mint: Pubkey,
     pub amount: u64,
     pub slippage_bps: u32,
-    pub token_decimals: u32,
-    pub token_price: f64,
     pub tick_arrays: [Pubkey; 3],
+    pub estimate_output: f64,
 }

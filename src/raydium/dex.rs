@@ -66,24 +66,15 @@ impl Dex for RaydiumDex {
             output_vault_mint,
             amount,
             slippage_bps,
-            token_decimals,
-            token_price,
             tick_arrays,
+            estimate_output,
         } = params;
 
         let amm_config = Pubkey::new_from_array(pool_state.amm_config.to_bytes());
         let a_to_b = pool_state.token_mint0.to_bytes() == spl_token::native_mint::id().to_bytes();
 
-        let amount_sol = amount as f64 / 1e9;
-
-        let expected_output = if a_to_b {
-            (amount_sol * token_price * 10f64.powi(token_decimals as i32)) as u64
-        } else {
-            (amount_sol / token_price * 10f64.powi(token_decimals as i32)) as u64
-        };
-
         let other_amount_threshold =
-            (expected_output as f64 * (10_000 - slippage_bps) as f64 / 10_000.0) as u64;
+            (estimate_output * (10_000 - slippage_bps) as f64 / 10_000.0) as u64;
 
         let sqrt_price_limit_x64 = if a_to_b {
             MIN_SQRT_PRICE_X64

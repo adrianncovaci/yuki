@@ -11,9 +11,7 @@ pub struct SwapParams {
     pub whirlpool: Whirlpool,
     pub pool_address: Pubkey,
     pub amount: u64,
-    pub slippage_bps: u32,
-    pub b_token_decimals: u32,
-    pub b_token_price: f64,
+    pub other_amount_threshold: u64,
     pub authority: Pubkey,
     pub wsol_ata: Pubkey,
     pub dca_token_ata: Pubkey,
@@ -46,9 +44,7 @@ impl Dex for OrcaDex {
             whirlpool,
             pool_address,
             amount,
-            slippage_bps,
-            b_token_decimals,
-            b_token_price,
+            other_amount_threshold,
             authority,
             wsol_ata,
             dca_token_ata,
@@ -57,22 +53,13 @@ impl Dex for OrcaDex {
             amount_specified_is_input,
         } = params;
 
-        let amount_sol = amount as f64 / 1e9;
-
         let a_to_b = whirlpool.token_mint_a == spl_token::native_mint::ID;
 
-        let (a_token_ata, b_token_ata, expected_price) = if a_to_b {
-            let expected_price =
-                (amount_sol * b_token_price * 10f64.powi(b_token_decimals as i32)) as u64;
-            (wsol_ata, dca_token_ata, expected_price)
+        let (a_token_ata, b_token_ata) = if a_to_b {
+            (wsol_ata, dca_token_ata)
         } else {
-            let expected_price =
-                (amount_sol / b_token_price * 10f64.powi(b_token_decimals as i32)) as u64;
-            (dca_token_ata, wsol_ata, expected_price)
+            (dca_token_ata, wsol_ata)
         };
-
-        let other_amount_threshold =
-            (expected_price as f64 * (10_000 - slippage_bps) as f64 / 10_000.0) as u64;
 
         let sqrt_price = if a_to_b {
             MIN_SQRT_PRICE

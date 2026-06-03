@@ -50,8 +50,6 @@ pub async fn raydium_dca_target(
 
     let ticks = tick_array.fetch_and_deserialize(client, &pool).await?;
 
-    let price = RaydiumDex::sqrt_price_to_price(pool.sqrt_price_x64, target.decimals as u8, 9);
-
     let amm_config = client
         .get_account_data(&Pubkey::new_from_array(pool.amm_config.to_bytes()))
         .await
@@ -60,8 +58,8 @@ pub async fn raydium_dca_target(
     let amm_config = AmmConfig::from_bytes(&amm_config).context("Failed to create amm config")?;
 
     let rem = amount as f64 * (1.0 - amm_config.trade_fee_rate as f64 / 1_000_000.0);
-    let estimated_output = crate::raydium::quote::estimate_output(rem, &ticks, &pool)
-        / 10f64.powi(target.decimals as i32);
+    let estimated_output_raw = crate::raydium::quote::estimate_output(rem, &ticks, &pool);
+    let estimated_output = estimated_output_raw / 10f64.powi(target.decimals as i32);
 
     let recent_blockhash = client
         .get_latest_blockhash()
@@ -101,9 +99,8 @@ pub async fn raydium_dca_target(
         output_vault_mint: target.mint_address,
         amount,
         slippage_bps: config.swap.slippage_bps,
-        token_decimals: target.decimals,
-        token_price: price,
         tick_arrays: tick_array.inner,
+        estimate_output: estimated_output_raw,
     };
 
     let swap_ix = RaydiumDex::swap(swap_params);
