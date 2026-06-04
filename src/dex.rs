@@ -6,6 +6,7 @@ use solana_sdk::{message::Instruction, pubkey::Pubkey};
 pub trait Dex {
     type Pool;
     type SwapParams;
+    type QuoteParams;
 
     fn sqrt_price_to_price(sqrt_price: u128, decimals_0: u8, decimals_1: u8) -> f64 {
         let sqrt_price = sqrt_price as f64 / 2u128.pow(64) as f64;
@@ -19,6 +20,8 @@ pub trait Dex {
     ) -> impl Future<Output = Result<Self::Pool, anyhow::Error>> + Send;
 
     fn swap(params: Self::SwapParams) -> Instruction;
+
+    fn quote(params: Self::QuoteParams) -> anyhow::Result<f64>;
 
     fn name() -> &'static str;
 }

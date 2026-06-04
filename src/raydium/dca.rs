@@ -15,7 +15,11 @@ use crate::{
     config::{Config, Target},
     dex::Dex,
     dto::SwapResult,
-    raydium::{dex::RaydiumDex, swap::SwapParams, tick::TickArray},
+    raydium::{
+        dex::{QuoteParams, RaydiumDex},
+        swap::SwapParams,
+        tick::TickArray,
+    },
     transfer::transfer_to_cold_wallet,
     wsol::WsolSwap,
 };
@@ -58,7 +62,11 @@ pub async fn raydium_dca_target(
     let amm_config = AmmConfig::from_bytes(&amm_config).context("Failed to create amm config")?;
 
     let rem = amount as f64 * (1.0 - amm_config.trade_fee_rate as f64 / 1_000_000.0);
-    let estimated_output_raw = crate::raydium::quote::estimate_output(rem, &ticks, &pool);
+    let estimated_output_raw = RaydiumDex::quote(QuoteParams {
+        net_in: rem,
+        ticks,
+        pool: *pool.clone(),
+    })?;
     let estimated_output = estimated_output_raw / 10f64.powi(target.decimals as i32);
 
     let recent_blockhash = client

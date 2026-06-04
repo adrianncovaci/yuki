@@ -17,7 +17,7 @@ use crate::{
     dex::Dex,
     dto::SwapResult,
     orca::{
-        dex::{OrcaDex, SwapParams},
+        dex::{OrcaDex, QuoteParams, SwapParams},
         tick::TickArray,
     },
     transfer::transfer_to_cold_wallet,
@@ -54,17 +54,17 @@ pub async fn orca_dca_target(
         whirlpool.token_mint_a == spl_token::native_mint::ID,
     )?;
 
-    let quote = orca_whirlpools_core::swap_quote_by_input_token(
-        amount,
-        sol_is_mint0,
-        config.swap.slippage_bps as u16,
-        (*whirlpool.clone()).into(),
-        None,
-        tick_array.fetch_and_deserialize(client).await?,
-        SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-        None,
-        None,
-    )
+    let quote = OrcaDex::quote(QuoteParams {
+        token_in: amount,
+        specified_token_a: sol_is_mint0,
+        slippage_tolerance_bps: config.swap.slippage_bps as u16,
+        whirlpool: (*whirlpool.clone()).into(),
+        oracle: None,
+        tick_arrays: tick_array.fetch_and_deserialize(client).await?,
+        timestamp: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+        transfer_fee_a: None,
+        transfer_fee_b: None,
+    })
     .map_err(|err| anyhow::anyhow!("Failed to fetch swap quote: {err:?}"))?;
 
     let recent_blockhash = client
@@ -79,7 +79,7 @@ pub async fn orca_dca_target(
         whirlpool: *whirlpool,
         pool_address,
         amount,
-        other_amount_threshold: quote.token_min_out,
+        other_amount_threshold: quote as u64,
         authority: wallet.pubkey(),
         wsol_ata: wsol_swap.keypair.pubkey(),
         dca_token_ata: ata,
@@ -123,7 +123,7 @@ pub async fn orca_dca_target(
         symbol: target.symbol.clone(),
         amount,
         dex: OrcaDex::name().to_string(),
-        estimated_output: quote.token_est_out as f64 / 10f64.powi(target.decimals as i32),
+        estimated_output: quote / 10f64.powi(target.decimals as i32),
         signature: signature.to_string(),
     })
 }

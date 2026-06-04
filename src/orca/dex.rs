@@ -2,7 +2,9 @@ use anyhow::Context;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 
 use orca_whirlpools_client::{SwapV2Builder, Whirlpool};
-use orca_whirlpools_core::{MAX_SQRT_PRICE, MIN_SQRT_PRICE};
+use orca_whirlpools_core::{
+    MAX_SQRT_PRICE, MIN_SQRT_PRICE, OracleFacade, TickArrays, TransferFee, WhirlpoolFacade,
+};
 use solana_sdk::{message::Instruction, pubkey::Pubkey};
 
 use crate::dex::Dex;
@@ -20,12 +22,26 @@ pub struct SwapParams {
     pub amount_specified_is_input: bool,
 }
 
+pub struct QuoteParams {
+    pub token_in: u64,
+    pub specified_token_a: bool,
+    pub slippage_tolerance_bps: u16,
+    pub whirlpool: WhirlpoolFacade,
+    pub oracle: Option<OracleFacade>,
+    pub tick_arrays: TickArrays,
+    pub timestamp: u64,
+    pub transfer_fee_a: Option<TransferFee>,
+    pub transfer_fee_b: Option<TransferFee>,
+}
+
 pub struct OrcaDex {}
 
 impl Dex for OrcaDex {
     type Pool = Whirlpool;
 
     type SwapParams = SwapParams;
+
+    type QuoteParams = QuoteParams;
 
     async fn fetch_pool_bytes(
         client: &RpcClient,
@@ -92,5 +108,21 @@ impl Dex for OrcaDex {
 
     fn name() -> &'static str {
         "Orca"
+    }
+
+    fn quote(params: QuoteParams) -> anyhow::Result<f64> {
+        orca_whirlpools_core::swap_quote_by_input_token(
+            params.token_in,
+            params.specified_token_a,
+            params.slippage_tolerance_bps,
+            params.whirlpool,
+            params.oracle,
+            params.tick_arrays,
+            params.timestamp,
+            params.transfer_fee_a,
+            params.transfer_fee_b,
+        )
+        .map(|res| res.token_min_out as f64)
+        .map_err(|err| anyhow::anyhow!("Failed to fetch swap quote: {err:?}"))
     }
 }

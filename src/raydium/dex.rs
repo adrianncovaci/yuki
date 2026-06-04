@@ -1,5 +1,5 @@
 use anyhow::Context;
-use raydium_clmm::accounts::PoolState;
+use raydium_clmm::{accounts::PoolState, types::TickState};
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     message::{AccountMeta, Instruction},
@@ -19,10 +19,17 @@ use crate::{
 
 pub struct RaydiumDex {}
 
+pub struct QuoteParams {
+    pub net_in: f64,
+    pub ticks: Vec<TickState>,
+    pub pool: PoolState,
+}
+
 impl Dex for RaydiumDex {
     type Pool = PoolState;
 
     type SwapParams = SwapParams;
+    type QuoteParams = QuoteParams;
 
     async fn fetch_pool_bytes(
         client: &RpcClient,
@@ -121,5 +128,13 @@ impl Dex for RaydiumDex {
 
     fn name() -> &'static str {
         "Raydium"
+    }
+
+    fn quote(params: Self::QuoteParams) -> anyhow::Result<f64> {
+        Ok(crate::raydium::quote::estimate_output(
+            params.net_in,
+            &params.ticks,
+            &params.pool,
+        ))
     }
 }
