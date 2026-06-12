@@ -42,6 +42,8 @@ pub struct Target {
     pub orca_pool: Option<Pubkey>,
     #[serde(default, deserialize_with = "deserialize_optional_pubkey")]
     pub raydium_pool: Option<Pubkey>,
+    #[serde(default, deserialize_with = "deserialize_optional_pubkey")]
+    pub meteora_dlmm_pool: Option<Pubkey>,
     pub decimals: u32,
 }
 

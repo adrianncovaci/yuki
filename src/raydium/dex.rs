@@ -1,5 +1,5 @@
 use anyhow::Context;
-use raydium_clmm::{accounts::PoolState, types::TickState};
+use raydium_clmm::accounts::PoolState;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     message::{AccountMeta, Instruction},
@@ -10,6 +10,7 @@ use crate::{
     dex::Dex,
     raydium::{
         RAYDIUM_CLMM_PROGRAM,
+        quote::QuoteParams,
         swap::{
             MAX_SQRT_PRICE_X64, MEMO_PROGRAM, MIN_SQRT_PRICE_X64, SWAP_DISCRIMINATOR, SwapArgs,
             SwapParams, TOKEN_PROGRAM_2022,
@@ -18,12 +19,6 @@ use crate::{
 };
 
 pub struct RaydiumDex {}
-
-pub struct QuoteParams {
-    pub net_in: f64,
-    pub ticks: Vec<TickState>,
-    pub pool: PoolState,
-}
 
 impl Dex for RaydiumDex {
     type Pool = PoolState;

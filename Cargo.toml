@@ -7,22 +7,21 @@ edition = "2024"
 anyhow = "1"
 borsh = "1"
 clap = { version = "4", features = ["derive"] }
+meteora-sol = "0.1"
 orca_whirlpools_client = "8"
 orca_whirlpools_core = "2"
 raydium_clmm = "0.1"
+reqwest = { version = "0.13", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+solana-pubkey = "2"
 solana-rpc-client = "4.0.0-beta.3"
 solana-sdk = "4"
 solana-system-interface = "3"
 spl-associated-token-account-interface = "2"
 spl-token = "9"
-reqwest = { version = "0.13", features = ["json"] }
-serde_json = "1"
+strum = { version = "0.28", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-strum = { version = "0.28", features = ["derive"] }
-
-[dev-dependencies]
-solana-pubkey = "2"

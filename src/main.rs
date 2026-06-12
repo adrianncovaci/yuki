@@ -1,6 +1,7 @@
 pub mod config;
 pub mod dex;
 pub mod dto;
+pub mod meteora;
 pub mod orca;
 pub mod raydium;
 pub mod telegram;
@@ -23,6 +24,7 @@ use crate::{
     config::Config,
     dex::{Dex, DexPool},
     dto::SwapError,
+    meteora::dlmm::{bin_price_ui, dca::meteora_dca_target, dex::MeteoraDlmmDex},
     orca::{dca::orca_dca_target, dex::OrcaDex},
     raydium::{dca::raydium_dca_target, dex::RaydiumDex},
 };
@@ -156,6 +158,31 @@ async fn main() -> anyhow::Result<()> {
                     }
                 };
 
+                if let Some(pool) = target.meteora_dlmm_pool {
+                    match MeteoraDlmmDex::fetch_pool_bytes(&client, pool).await {
+                        Ok(pool) => {
+                            let (dec_x, dec_y) = if pool.token_x_mint.to_bytes()
+                                == spl_token::native_mint::id().to_bytes()
+                            {
+                                (9u8, target.decimals as u8)
+                            } else {
+                                (target.decimals as u8, 9u8)
+                            };
+
+                            pools.push(DexPool::Meteora {
+                                price: bin_price_ui(pool.active_id, pool.bin_step, dec_x, dec_y),
+                                pool: Box::new(pool),
+                            })
+                        }
+                        Err(err) => {
+                            tracing::error!(
+                                "{} | failed to fetch Meteora pool: {err}",
+                                target.symbol
+                            );
+                        }
+                    }
+                };
+
                 pools.sort_by(|a, b| a.sol_price().total_cmp(&b.sol_price()));
 
                 if pools.len() > 1 {
@@ -214,6 +241,19 @@ async fn main() -> anyhow::Result<()> {
                                 total_weight,
                                 rent_exempt,
                                 raydium_pool,
+                                cold_wallet,
+                            )
+                            .await
+                        }
+                        DexPool::Meteora { pool: lb_pair, .. } => {
+                            meteora_dca_target(
+                                &config,
+                                &client,
+                                &dca_wallet,
+                                target,
+                                total_weight,
+                                rent_exempt,
+                                lb_pair,
                                 cold_wallet,
                             )
                             .await

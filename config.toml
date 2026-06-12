@@ -24,6 +24,7 @@ mint_address = "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN"
 weight = 25
 orca_pool = "C1MgLojNLWBKADvu9BHdtgzz1oZX4dZ5zGdGcgvvW8Wz"
 raydium_pool = "EZVkeboWeXygtq8LMyENHyXdF5wpYrtExRNH9UwB1qYw"
+meteora_dlmm_pool = "C8Gr6AUuq9hEdSYJzoEpNcdjpojPZwqG5MtQbeouNNwg"
 decimals = 6
 
 # [[targets]]
@@ -40,6 +41,7 @@ mint_address = "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL"
 weight = 25
 orca_pool = "2UhFnySoJi6c89aydGAGS7ZRemo2dbkFRhvSJqDX4gHJ"
 raydium_pool = "JVoPtWWDsRcLvQosu5fWc2CaNF6jEtJzbxdPtcEuvZo"
+meteora_dlmm_pool = "GZcP3ANuTD15ZrYaF1RacomBKXVCCKvXYyWVDaEDqkKi"
 decimals = 9
 
 # [[targets]]

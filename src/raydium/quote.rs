@@ -1,5 +1,11 @@
 use raydium_clmm::{accounts::PoolState, types::TickState};
 
+pub struct QuoteParams {
+    pub net_in: f64,
+    pub ticks: Vec<TickState>,
+    pub pool: PoolState,
+}
+
 pub fn estimate_output(net_in: f64, ticks: &[TickState], pool: &PoolState) -> f64 {
     let mut full_swap = false;
 

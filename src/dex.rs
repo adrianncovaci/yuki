@@ -1,3 +1,4 @@
+use meteora_sol::accounts::LbPair;
 use orca_whirlpools_client::Whirlpool;
 use raydium_clmm::accounts::PoolState;
 use solana_rpc_client::nonblocking::rpc_client::RpcClient;
@@ -30,6 +31,7 @@ pub trait Dex {
 pub enum DexPool {
     Orca { pool: Box<Whirlpool>, price: f64 },
     Raydium { pool: Box<PoolState>, price: f64 },
+    Meteora { pool: Box<LbPair>, price: f64 },
 }
 
 impl DexPool {
@@ -41,6 +43,7 @@ impl DexPool {
         match self {
             DexPool::Orca { price, .. } => *price,
             DexPool::Raydium { price, .. } => *price,
+            DexPool::Meteora { price, .. } => *price,
         }
     }
 
@@ -60,6 +63,13 @@ impl DexPool {
                     *price
                 }
             }
+            DexPool::Meteora { price, .. } => {
+                if self.is_sol_mint0() {
+                    1.0 / price
+                } else {
+                    *price
+                }
+            }
         }
     }
 
@@ -68,6 +78,9 @@ impl DexPool {
             DexPool::Orca { pool, .. } => pool.token_mint_a == spl_token::native_mint::ID,
             DexPool::Raydium { pool, .. } => {
                 pool.token_mint0.to_bytes() == spl_token::native_mint::id().to_bytes()
+            }
+            DexPool::Meteora { pool, .. } => {
+                pool.token_x_mint.to_bytes() == spl_token::native_mint::id().to_bytes()
             }
         }
     }
