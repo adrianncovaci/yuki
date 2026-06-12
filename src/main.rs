@@ -38,6 +38,22 @@ struct CliArgs {
     config: String,
 }
 
+fn price_report(symbol: &str, pools: &[DexPool]) -> String {
+    let best = pools[0].sol_price();
+    let mut out = format!("<b>{symbol}</b>\n<pre>");
+    for (i, pool) in pools.iter().enumerate() {
+        let price = pool.sol_price();
+        let tag = if i == 0 {
+            "best".to_string()
+        } else {
+            format!("+{:.1}bps", (price - best) / best * 10_000.0)
+        };
+        out += &format!("{:<8} {:.6}  {tag}\n", pool.name(), price);
+    }
+    out += "</pre>";
+    out
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -114,6 +130,7 @@ async fn main() -> anyhow::Result<()> {
             }
         } else {
             let mut results: Vec<String> = vec![];
+            let mut price_lines: Vec<String> = vec![];
 
             for target in &config.targets {
                 let mut pools = vec![];
@@ -184,6 +201,10 @@ async fn main() -> anyhow::Result<()> {
                 };
 
                 pools.sort_by(|a, b| a.sol_price().total_cmp(&b.sol_price()));
+
+                if !pools.is_empty() {
+                    price_lines.push(price_report(&target.symbol, &pools));
+                }
 
                 if pools.len() > 1 {
                     let best = &pools[0];
@@ -287,8 +308,9 @@ async fn main() -> anyhow::Result<()> {
             if let Some(ref tg) = tg {
                 let remaining = client.get_balance(&dca_wallet.pubkey()).await.unwrap_or(0);
                 let summary = format!(
-                    "DCA Round Complete\nBalance: {:.4} SOL\n{}\n",
+                    "DCA Round Complete\nBalance: {:.4} SOL\n\n{}\n\n{}\n",
                     remaining as f64 / 1e9,
+                    price_lines.join("\n"),
                     results.join("\n"),
                 );
                 if let Err(e) = tg.send(&summary).await {
