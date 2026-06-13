@@ -1,15 +1,3 @@
-pub mod config;
-pub mod dex;
-pub mod dto;
-pub mod meteora;
-pub mod orca;
-pub mod raydium;
-pub mod telegram;
-#[cfg(test)]
-pub mod test;
-pub mod transfer;
-pub mod wsol;
-
 use clap::Parser;
 use solana_sdk::{pubkey::Pubkey, signature::read_keypair_file, signer::Signer};
 use std::str::FromStr;
@@ -20,13 +8,14 @@ use anyhow::Context;
 
 use solana_rpc_client::{api::config::CommitmentConfig, nonblocking::rpc_client::RpcClient};
 
-use crate::{
+use yuki::{
     config::Config,
     dex::{Dex, DexPool},
     dto::SwapError,
     meteora::dlmm::{bin_price_ui, dca::meteora_dca_target, dex::MeteoraDlmmDex},
     orca::{dca::orca_dca_target, dex::OrcaDex},
     raydium::{dca::raydium_dca_target, dex::RaydiumDex},
+    telegram,
 };
 
 #[derive(Parser, Debug)]
