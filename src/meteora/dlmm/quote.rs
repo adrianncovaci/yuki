@@ -133,8 +133,8 @@ pub fn estimate_output(
     pair: &LbPair,
     bin_arrays: &[(Pubkey, BinArray)],
     now: i64,
+    swap_for_y: bool,
 ) -> anyhow::Result<f64> {
-    let swap_for_y = pair.token_x_mint.to_bytes() == spl_token::native_mint::id().to_bytes();
     let bin_step = pair.bin_step;
     let params = &pair.parameters;
 

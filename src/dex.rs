@@ -29,9 +29,21 @@ pub trait Dex {
 
 #[derive(strum::Display)]
 pub enum DexPool {
-    Orca { pool: Box<Whirlpool>, price: f64 },
-    Raydium { pool: Box<PoolState>, price: f64 },
-    Meteora { pool: Box<LbPair>, price: f64 },
+    Orca {
+        pool: Box<Whirlpool>,
+        price: f64,
+        address: Pubkey,
+    },
+    Raydium {
+        pool: Box<PoolState>,
+        price: f64,
+        address: Pubkey,
+    },
+    Meteora {
+        pool: Box<LbPair>,
+        price: f64,
+        address: Pubkey,
+    },
 }
 
 impl DexPool {

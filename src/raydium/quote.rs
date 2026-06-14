@@ -4,12 +4,11 @@ pub struct QuoteParams {
     pub net_in: f64,
     pub ticks: Vec<TickState>,
     pub pool: PoolState,
+    pub swap_for_y: bool,
 }
 
-pub fn estimate_output(net_in: f64, ticks: &[TickState], pool: &PoolState) -> f64 {
+pub fn estimate_output(net_in: f64, ticks: &[TickState], pool: &PoolState, a_to_b: bool) -> f64 {
     let mut full_swap = false;
-
-    let a_to_b = pool.token_mint0.to_bytes() == spl_token::native_mint::ID.to_bytes();
 
     let mut cur = pool.sqrt_price_x64 as f64 / (1u128 << 64) as f64;
     let mut liquidity = pool.liquidity;
@@ -193,7 +192,12 @@ pub(crate) mod tests {
     fn run_both(spec: &PoolSpec, gross_in: u64) -> (f64, u64) {
         // ours
         let net_in = gross_in as f64 * (1.0 - spec.fee_rate_pm as f64 / 1_000_000.0);
-        let ours = super::estimate_output(net_in, &mk_ticks_rs(spec), &mk_pool(spec));
+        let ours = super::estimate_output(
+            net_in,
+            &mk_ticks_rs(spec),
+            &mk_pool(spec),
+            spec.sol_is_mint0,
+        );
 
         // orca
         let whirlpool = mk_whirlpool(spec);

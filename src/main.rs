@@ -124,8 +124,8 @@ async fn main() -> anyhow::Result<()> {
             for target in &config.targets {
                 let mut pools = vec![];
 
-                if let Some(pool) = target.raydium_pool {
-                    match RaydiumDex::fetch_pool_bytes(&client, pool).await {
+                if let Some(address) = target.raydium_pool {
+                    match RaydiumDex::fetch_pool_bytes(&client, address).await {
                         Ok(pool) => pools.push(DexPool::Raydium {
                             price: RaydiumDex::sqrt_price_to_price(
                                 pool.sqrt_price_x64,
@@ -133,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
                                 pool.mint_decimals1,
                             ),
                             pool: Box::new(pool),
+                            address,
                         }),
                         Err(err) => {
                             tracing::error!(
@@ -143,8 +144,8 @@ async fn main() -> anyhow::Result<()> {
                     }
                 };
 
-                if let Some(pool) = target.orca_pool {
-                    match OrcaDex::fetch_pool_bytes(&client, pool).await {
+                if let Some(address) = target.orca_pool {
+                    match OrcaDex::fetch_pool_bytes(&client, address).await {
                         Ok(pool) => {
                             let (dec_0, dec_1) =
                                 if pool.token_mint_a == spl_token::native_mint::id() {
@@ -156,6 +157,7 @@ async fn main() -> anyhow::Result<()> {
                             pools.push(DexPool::Orca {
                                 price: OrcaDex::sqrt_price_to_price(pool.sqrt_price, dec_0, dec_1),
                                 pool: Box::new(pool),
+                                address,
                             })
                         }
                         Err(err) => {
@@ -164,8 +166,8 @@ async fn main() -> anyhow::Result<()> {
                     }
                 };
 
-                if let Some(pool) = target.meteora_dlmm_pool {
-                    match MeteoraDlmmDex::fetch_pool_bytes(&client, pool).await {
+                if let Some(address) = target.meteora_dlmm_pool {
+                    match MeteoraDlmmDex::fetch_pool_bytes(&client, address).await {
                         Ok(pool) => {
                             let (dec_x, dec_y) = if pool.token_x_mint.to_bytes()
                                 == spl_token::native_mint::id().to_bytes()
@@ -178,6 +180,7 @@ async fn main() -> anyhow::Result<()> {
                             pools.push(DexPool::Meteora {
                                 price: bin_price_ui(pool.active_id, pool.bin_step, dec_x, dec_y),
                                 pool: Box::new(pool),
+                                address,
                             })
                         }
                         Err(err) => {

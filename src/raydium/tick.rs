@@ -69,9 +69,8 @@ impl TickArray {
         &self,
         rpc_client: &RpcClient,
         pool: &PoolState,
+        a_to_b: bool,
     ) -> anyhow::Result<Vec<TickState>> {
-        let a_to_b = pool.token_mint0.to_bytes() == spl_token::native_mint::ID.to_bytes();
-
         let mut res = rpc_client
             .get_multiple_accounts(&self.inner)
             .await

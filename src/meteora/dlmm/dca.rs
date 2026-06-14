@@ -73,6 +73,7 @@ pub async fn meteora_dca_target(
         pair: *pool.clone(),
         bin_arrays,
         timestamp: now,
+        swap_for_y: pool.token_x_mint.to_bytes() == spl_token::native_mint::id().to_bytes(),
     })?;
     let estimated_output = estimated_output_raw / 10f64.powi(target.decimals as i32);
 

@@ -29,6 +29,7 @@ pub struct QuoteParams {
     pub pair: LbPair,
     pub bin_arrays: Vec<(Pubkey, BinArray)>,
     pub timestamp: i64,
+    pub swap_for_y: bool,
 }
 
 impl Dex for MeteoraDlmmDex {
@@ -113,6 +114,7 @@ impl Dex for MeteoraDlmmDex {
             &params.pair,
             &params.bin_arrays,
             params.timestamp,
+            params.swap_for_y,
         )
     }
 

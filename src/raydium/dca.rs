@@ -48,7 +48,9 @@ pub async fn raydium_dca_target(
         sol_is_mint0,
     );
 
-    let ticks = tick_array.fetch_and_deserialize(client, &pool).await?;
+    let ticks = tick_array
+        .fetch_and_deserialize(client, &pool, sol_is_mint0)
+        .await?;
 
     let amm_config = client
         .get_account_data(&Pubkey::new_from_array(pool.amm_config.to_bytes()))
@@ -62,6 +64,7 @@ pub async fn raydium_dca_target(
         net_in: rem,
         ticks,
         pool: *pool.clone(),
+        swap_for_y: pool.token_mint0.to_bytes() == spl_token::native_mint::id().to_bytes(),
     })?;
     let estimated_output = estimated_output_raw / 10f64.powi(target.decimals as i32);
 

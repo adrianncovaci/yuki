@@ -130,6 +130,7 @@ impl Dex for RaydiumDex {
             params.net_in,
             &params.ticks,
             &params.pool,
+            params.swap_for_y,
         ))
     }
 }
