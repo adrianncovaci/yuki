@@ -8,4 +8,5 @@ pub mod telegram;
 #[cfg(test)]
 pub mod test;
 pub mod transfer;
+pub mod venue;
 pub mod wsol;
