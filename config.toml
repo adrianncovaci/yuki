@@ -13,6 +13,9 @@ interval = 86400
 
 [scanner]
 interval = 60
+alert_threshold_bps = 30.0
+alert_cooldown_secs = 900
+digest_interval_secs = 86400
 
 # [[targets]]
 # symbol = "BP"

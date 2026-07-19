@@ -10,27 +10,16 @@ pub struct Config {
     pub rpc: Rpc,
     pub wallet: Wallet,
     pub swap: Swap,
-    #[serde(default)]
     pub scanner: Scanner,
     pub targets: Vec<Target>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Scanner {
-    #[serde(default = "default_scanner_interval")]
     pub interval: u64,
-}
-
-impl Default for Scanner {
-    fn default() -> Self {
-        Self {
-            interval: default_scanner_interval(),
-        }
-    }
-}
-
-fn default_scanner_interval() -> u64 {
-    300
+    pub alert_threshold_bps: f64,
+    pub alert_cooldown_secs: u64,
+    pub digest_interval_secs: u64,
 }
 
 #[derive(Debug, Deserialize)]
