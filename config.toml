@@ -11,6 +11,9 @@ amount_sol = 0.1
 slippage_bps = 100
 interval = 86400
 
+[scanner]
+interval = 60
+
 # [[targets]]
 # symbol = "BP"
 # mint_address = "BPxxfRCXkUVhig4HS1Lh7kZqV6SPJhzfEk4x6fVBjPCy"

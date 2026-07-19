@@ -14,7 +14,41 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build:
+  build_scanner:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: >-
+            x86_64-unknown-linux-musl
+
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "release"
+          cache-on-failure: true
+
+      - name: Build
+        run: cargo build --release --target x86_64-unknown-linux-musl --bin scanner
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scanner-binary
+          path: target/x86_64-unknown-linux-musl/release/scanner
+          retention-days: 1
+
+  build_dca:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -48,8 +82,8 @@ jobs:
           path: target/x86_64-unknown-linux-musl/release/yuki
           retention-days: 1
 
-  container:
-    needs: build
+  container_dca:
+    needs: build_dca
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -97,8 +131,58 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
+  container_scanner:
+    needs: build_scanner
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: scanner-binary
+          path: target/x86_64-unknown-linux-musl/release/
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-scanner
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/deploy_') }}
+
+      - name: Build and push container
+        uses: docker/build-push-action@v5
+        with:
+          file: ./Dockerfile.scanner
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
   deploy:
-    needs: container
+    needs: [container_dca, container_scanner]
     if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/deploy_')
     runs-on: ubuntu-latest
 
